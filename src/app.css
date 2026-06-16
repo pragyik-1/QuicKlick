@@ -32,23 +32,23 @@ html {
 }
 
 :root {
-    --bg: rgb(13, 14, 20);
+    --bg: rgb(15, 15, 20);
     --text: rgb(255, 255, 255);
 
-    --input: rgb(31, 34, 45);
-    --input-focus: rgb(40, 44, 58);
+    --input: rgb(35, 35, 44);
+    --input-focus: rgb(43, 43, 50);
 
     --primary: rgb(99, 102, 241);
     --primary-hover: rgb(79, 70, 229);
 
-    --surface: rgb(21, 23, 32);
-    --surface-hover: rgb(27, 30, 42);
+    --surface: rgb(24, 24, 32);
+    --surface-hover: rgb(31, 31, 40);
 
-    --border: rgb(36, 40, 53);
+    --border: rgb(47, 47, 60);
 
     --primary-text: rgb(242, 244, 248);
-    --secondary-text: rgb(158, 163, 176);
-    --muted-text: rgb(100, 109, 124);
+    --secondary-text: rgb(163, 163, 172);
+    --muted-text: rgb(109, 109, 120);
 
     --danger: rgb(255, 94, 94);
     --danger-hover: rgb(235, 79, 79);
@@ -66,7 +66,7 @@ html {
     --warn-hover: rgb(230, 154, 45);
 
     --control: rgb(255, 255, 255);
-    --control-bg: rgb(48, 53, 69);
+    --control-bg: rgb(57, 57, 72);
 
     --round-sm: 0.25rem;
     --round-md: 0.5rem;
@@ -75,6 +75,7 @@ html {
 
     --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-mono: ui-monospace, 'SF Mono', Consolas, 'Liberation Mono', monospace;
+    color-scheme: dark;
 }
 
 html.light {
@@ -116,8 +117,9 @@ html.light {
 }
 
 body {
-    background-color: var(--bg);
+    background-color: var(--bg) !important;
     color: var(--text);
+    forced-color-adjust: none;
 }
 
 body,
@@ -189,6 +191,9 @@ textarea {
     transition: color 0.2s ease, border-color 0.2s ease;
     padding: 0.5rem 0;
     border-bottom: 2px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .nav-link:hover {

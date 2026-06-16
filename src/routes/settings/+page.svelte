@@ -5,6 +5,7 @@
     import HotkeyInput from "$lib/HotkeyInput.svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { onMount } from "svelte";
+    import { TriangleAlert } from "lucide-svelte";
 
     import "./page.css";
 
@@ -81,23 +82,10 @@
         <div
             style="padding: 1rem; text-align: center; color: var(--muted-text);"
         >
-            <svg
-                style="margin: 0 auto 1rem auto; display: block; color: var(--primary);"
-                width="48"
-                height="48"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                ><circle cx="12" cy="12" r="10" /><line
-                    x1="12"
-                    y1="8"
-                    x2="12"
-                    y2="12"
-                /><line x1="12" y1="16" x2="12.01" y2="16" /></svg
-            >
+            <TriangleAlert
+                size={48}
+                style="margin: 0 auto 1rem auto; display: block; color: var(--warn);"
+            />
             <p
                 style="margin-bottom: 0.5rem; color: var(--primary-text); font-weight: 600; font-size: 1.1rem;"
             >

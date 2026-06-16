@@ -1,4 +1,10 @@
-use crate::{frontend_api::ClickTargetPayload, utils::KeyCode, Errors};
+use std::time::Duration;
+
+use crate::{
+    frontend_api::ClickTargetPayload,
+    utils::{KeyCode, MacroTimer},
+    Errors,
+};
 use enigo::{Enigo, Keyboard, Mouse, Settings};
 use serde::{Deserialize, Serialize};
 
@@ -93,15 +99,21 @@ impl ClickType {
 
 pub struct Automator {
     enigo: Enigo,
+    timer: MacroTimer,
+    last_pos: Option<(i32, i32)>,
 }
 
 impl Automator {
+    const DOUBLE_CLICK_INTERVAL: Duration = Duration::from_millis(15);
     pub fn new() -> Self {
         Self {
             enigo: Enigo::new(&Settings::default()).expect("Failed to initialize Engio"),
+            timer: MacroTimer::start(),
+            last_pos: None,
         }
     }
     pub fn handle_click(&mut self, target: ClickTarget) {
+        self.timer.reset();
         match target.device {
             Device::Mouse => {
                 if let Some(button) = target.button {
@@ -112,6 +124,7 @@ impl Automator {
                         ClickType::Double => {
                             let button_clone = button.clone();
                             let _ = self.mouse_click(button, target.mouse_position);
+                            self.timer.sleep_remaining(Self::DOUBLE_CLICK_INTERVAL);
                             let _ = self.mouse_click(button_clone, target.mouse_position);
                         }
                         ClickType::Randomized => todo!("Randomized click not implemented yet"),
@@ -125,6 +138,7 @@ impl Automator {
                         ClickType::Double => {
                             let key_clone = key.clone();
                             let _ = self.key_click(key);
+                            self.timer.sleep_remaining(Self::DOUBLE_CLICK_INTERVAL);
                             let _ = self.key_click(key_clone);
                         }
                         ClickType::Randomized => todo!("Randomized click not implemented yet"),
@@ -134,16 +148,12 @@ impl Automator {
         }
     }
     fn mouse_click(&mut self, button: MouseButton, pos: Option<(i32, i32)>) -> Result<(), Errors> {
-        let (x, y) = match pos {
-            Some(p) => p,
-            None => {
-                let _ = self
-                    .enigo
-                    .button(button.to_enigo_button(), enigo::Direction::Click);
-                return Ok(());
+        if let Some((x, y)) = pos {
+            if self.last_pos != Some((x, y)) {
+                let _ = self.enigo.move_mouse(x, y, enigo::Coordinate::Abs);
+                self.last_pos = Some((x, y));
             }
-        };
-        let _ = self.enigo.move_mouse(x, y, enigo::Coordinate::Abs);
+        }
         let _ = self
             .enigo
             .button(button.to_enigo_button(), enigo::Direction::Click);

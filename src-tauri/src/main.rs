@@ -10,7 +10,7 @@ use std::{
         mpsc, Arc, Mutex,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 fn main() {
@@ -20,18 +20,17 @@ fn main() {
 
     let (tx, rx) = mpsc::channel();
 
-    let app_state: AppState = AppState {
-        is_running: Arc::new(AtomicBool::new(false)),
-        delay: Arc::new(AtomicU64::new(500)),
-        target: Arc::new(Mutex::new(ClickTarget {
+    let app_state: Arc<AppState> = Arc::new(AppState {
+        is_running: AtomicBool::new(false),
+        cps: AtomicU64::new(10.0f64.to_bits()),
+        target: Mutex::new(ClickTarget {
             key_code: Some(utils::KeyCode::Space),
             device: Device::Mouse,
             button: Some(MouseButton::Left),
             mouse_position: None,
             click_type: ClickType::Single,
-        })),
-        tx: tx.clone(),
-    };
+        }),
+    });
 
     let app_state_clone = app_state.clone();
     thread::spawn(move || {
@@ -46,20 +45,38 @@ fn main() {
                     break;
                 }
             } else {
-                let target: Arc<Mutex<ClickTarget>> = app_state_clone.target.clone();
-                let delay = Duration::from_millis(app_state_clone.delay.load(Ordering::SeqCst));
-                automator.handle_click(target.lock().unwrap().clone());
+                let target = app_state_clone.target.lock().unwrap().clone();
+                let cps = f64::from_bits(app_state_clone.cps.load(Ordering::SeqCst));
+                let delay = if cps > 0.0 {
+                    Duration::from_secs_f64(1.0 / cps)
+                } else {
+                    Duration::from_secs(1)
+                };
+                let start_time = Instant::now();
+                automator.handle_click(target);
 
-                match rx.recv_timeout(delay) {
-                    Ok(ClickerSig::Stop) => {
-                        app_state_clone.is_running.store(false, Ordering::SeqCst)
+                let elapsed = start_time.elapsed();
+                let wait_time = delay.saturating_sub(elapsed);
+
+                if wait_time.is_zero() {
+                    match rx.try_recv() {
+                        Ok(ClickerSig::Stop) => {
+                            app_state_clone.is_running.store(false, Ordering::SeqCst)
+                        }
+                        Ok(ClickerSig::Start) | Err(mpsc::TryRecvError::Empty) => (),
+                        Err(mpsc::TryRecvError::Disconnected) => break,
                     }
-                    Ok(ClickerSig::Start) => (),
-                    Err(mpsc::RecvTimeoutError::Timeout) => (),
-                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                } else {
+                    match rx.recv_timeout(wait_time) {
+                        Ok(ClickerSig::Stop) => {
+                            app_state_clone.is_running.store(false, Ordering::SeqCst)
+                        }
+                        Ok(ClickerSig::Start) | Err(mpsc::RecvTimeoutError::Timeout) => (),
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                    }
                 }
             }
         }
     });
-    quicklick_lib::run(app_state, tx);
+    quicklick_lib::run(app_state.clone(), tx);
 }

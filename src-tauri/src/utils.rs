@@ -1,3 +1,6 @@
+use std::thread;
+use std::time::{Duration, Instant};
+
 use enigo::Key;
 use serde::{Deserialize, Serialize};
 
@@ -181,5 +184,30 @@ impl serde::Serialize for KeyCode {
         S: serde::Serializer,
     {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+pub struct MacroTimer {
+    last_tick: Instant,
+}
+
+impl MacroTimer {
+    pub fn start() -> Self {
+        Self {
+            last_tick: Instant::now(),
+        }
+    }
+    pub fn reset(&mut self) {
+        self.last_tick = Instant::now();
+    }
+    pub fn sleep_remaining(&mut self, target_duration: Duration) {
+        let elapsed = self.last_tick.elapsed();
+
+        if let Some(sleep_time) = target_duration.checked_sub(elapsed) {
+            thread::sleep(sleep_time);
+            self.last_tick += target_duration;
+        } else {
+            self.last_tick = Instant::now();
+        }
     }
 }

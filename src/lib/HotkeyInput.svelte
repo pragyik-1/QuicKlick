@@ -125,6 +125,9 @@
     box-sizing: border-box;
     outline: none;
     text-align: center;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
   }
 
   .hotkey-input:hover {

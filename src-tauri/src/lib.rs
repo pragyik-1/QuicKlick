@@ -1,5 +1,5 @@
 use crate::automator::ClickTarget;
-use serde::Serialize;
+use frontend_api::AppStateDto;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use tauri::{AppHandle, Emitter, Listener, Manager};
@@ -19,17 +19,24 @@ pub enum Errors {
     InvalidTarget,
 }
 
-#[derive(Clone, Serialize)]
 pub struct AppState {
-    pub is_running: Arc<AtomicBool>,
-    pub delay: Arc<AtomicU64>,
-    pub target: Arc<Mutex<ClickTarget>>,
-    #[serde(skip)]
-    pub tx: mpsc::Sender<ClickerSig>,
+    pub is_running: AtomicBool,
+    pub cps: AtomicU64,
+    pub target: Mutex<ClickTarget>,
+}
+
+impl AppState {
+    pub fn to_dto(&self) -> AppStateDto {
+        AppStateDto {
+            is_running: self.is_running.load(Ordering::SeqCst),
+            cps: f64::from_bits(self.cps.load(Ordering::SeqCst)),
+            target: self.target.lock().unwrap().clone(),
+        }
+    }
 }
 
 pub fn handle_action(id: &str, app: &AppHandle) {
-    let state = app.state::<AppState>();
+    let state = app.state::<Arc<AppState>>();
     match id {
         shortcuts::ACTION_TOGGLE => {
             let current = state.is_running.load(Ordering::SeqCst);
@@ -42,7 +49,7 @@ pub fn handle_action(id: &str, app: &AppHandle) {
 }
 
 pub fn set_active(is_active: bool, app: &AppHandle) {
-    let state = app.state::<AppState>();
+    let state = app.state::<Arc<AppState>>();
     let tx = app.state::<mpsc::Sender<ClickerSig>>();
 
     let _ = tx.send(if is_active {
@@ -52,34 +59,34 @@ pub fn set_active(is_active: bool, app: &AppHandle) {
     });
 
     state.is_running.store(is_active, Ordering::SeqCst);
-    let _ = app.emit("state_change", state.inner().clone());
+    let _ = app.emit("state_change", state.to_dto());
 }
 
 pub fn toggle_clicker(app: &AppHandle) -> bool {
-    let state = app.state::<AppState>();
+    let state = app.state::<Arc<AppState>>();
     let current = state.is_running.load(Ordering::SeqCst);
     set_active(!current, app);
     !current
 }
 
 pub fn set_target(target: ClickTarget, app: &AppHandle) {
-    let state = app.state::<AppState>();
+    let state = app.state::<Arc<AppState>>();
     *state.target.lock().unwrap() = target;
     println!("Set target: {:?}", state.target.lock().unwrap());
 }
 
-pub fn get_app_state(app: &AppHandle) -> AppState {
-    let state = app.state::<AppState>();
-    state.inner().clone()
+pub fn get_app_state(app: &AppHandle) -> AppStateDto {
+    let state = app.state::<Arc<AppState>>();
+    state.to_dto()
 }
 
-pub fn set_delay(delay: u64, app: &AppHandle) {
-    let state = app.state::<AppState>();
-    state.delay.store(delay, Ordering::SeqCst);
+pub fn set_cps(cps: f64, app: &AppHandle) {
+    let state = app.state::<Arc<AppState>>();
+    state.cps.store(cps.to_bits(), Ordering::SeqCst);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run(app_state: AppState, tx: mpsc::Sender<ClickerSig>) {
+pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>) {
     let mut builder = tauri::Builder::default()
         .setup(move |app| {
             app.manage(app_state);
@@ -107,7 +114,7 @@ pub fn run(app_state: AppState, tx: mpsc::Sender<ClickerSig>) {
             frontend_api::toggle_clicker_cmd,
             frontend_api::set_target_cmd,
             frontend_api::get_app_state_cmd,
-            frontend_api::set_delay_cmd,
+            frontend_api::set_cps_cmd,
             frontend_api::is_wayland_cmd,
         ]);
 

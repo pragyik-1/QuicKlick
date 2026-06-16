@@ -3,6 +3,7 @@
     import { NavBar, ToastManager } from "bluenite";
     import { page } from "$app/state";
     import { clickerState } from "$lib/clickerState.svelte";
+    import { Settings, House, SlidersVertical } from "lucide-svelte";
     let { children } = $props();
 </script>
 
@@ -10,7 +11,7 @@
     <a class="nav-brand" href="/">
         <svg
             class="brand-icon"
-            class:pulse={clickerState.is_running}
+            class:pulse={clickerState.isRunning}
             width="22"
             height="22"
             viewBox="0 0 24 24"
@@ -27,19 +28,23 @@
     </a>
 
     <nav class="nav-links">
-        <a class="nav-link" class:active={page.url.pathname === "/"} href="/"
-            >Home</a
-        >
+        <a class="nav-link" class:active={page.url.pathname === "/"} href="/">
+            <House size={18} /> Home
+        </a>
         <a
             class="nav-link"
             class:active={page.url.pathname === "/advanced"}
-            href="/advanced">Advanced</a
+            href="/advanced"
         >
+            <SlidersVertical size={18} /> Advanced
+        </a>
         <a
             class="nav-link"
             class:active={page.url.pathname === "/settings"}
-            href="/settings">Settings</a
+            href="/settings"
         >
+            <Settings size={18} /> Settings
+        </a>
     </nav>
 </NavBar>
 

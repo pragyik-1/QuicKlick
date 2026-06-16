@@ -1,16 +1,24 @@
 use crate::automator::ClickTarget;
 use crate::shortcuts::ShortcutManager;
 use crate::utils::{InputEvent, KeyCode, Modifier};
-use crate::{get_app_state, set_delay, set_target, toggle_clicker, AppState, Errors};
+use crate::{get_app_state, set_cps, set_target, toggle_clicker, Errors};
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
-#[derive(Clone, serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ClickTargetPayload {
     pub device: String,
     pub key_code: Option<String>,
     pub button: Option<String>,
     pub mouse_position: Option<(i32, i32)>,
     pub click_type: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct AppStateDto {
+    pub is_running: bool,
+    pub cps: f64,
+    pub target: ClickTarget,
 }
 
 #[tauri::command]
@@ -46,13 +54,13 @@ pub fn update_shortcut_cmd(
 }
 
 #[tauri::command]
-pub fn get_app_state_cmd(app: AppHandle) -> AppState {
+pub fn get_app_state_cmd(app: AppHandle) -> AppStateDto {
     get_app_state(&app)
 }
 
 #[tauri::command]
-pub fn set_delay_cmd(app: AppHandle, delay: u64) {
-    set_delay(delay, &app);
+pub fn set_cps_cmd(app: AppHandle, cps: f64) {
+    set_cps(cps, &app);
 }
 
 #[tauri::command]

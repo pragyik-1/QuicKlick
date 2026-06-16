@@ -1,79 +1,82 @@
 .app-content {
-    max-width: 720px;
-    margin: 2rem auto;
-    padding: 0 1.5rem;
-    box-sizing: border-box;
+  max-width: 720px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+  box-sizing: border-box;
 }
 
 .toggle-section {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .toggle-status {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .toggle-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background-color: var(--danger);
-    transition: background-color 0.3s ease;
-    flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--danger);
+  transition: background-color 0.3s ease;
+  flex-shrink: 0;
 }
 
 .toggle-dot.active {
-    background-color: var(--success);
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
-    animation: blink 1.2s infinite alternate;
+  background-color: var(--success);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+  animation: blink 1.2s infinite alternate;
 }
 
 .toggle-label {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--primary-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--primary-text);
 }
 
 .toggle-sublabel {
-    font-size: 0.75rem;
-    color: var(--muted-text);
+  font-size: 0.75rem;
+  color: var(--muted-text);
 }
 
 .field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .field-label {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--secondary-text);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--secondary-text);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .field-row {
-    display: flex;
-    gap: 0.75rem;
-    align-items: end;
+  display: flex;
+  gap: 0.75rem;
+  align-items: end;
 }
 
 .field-row>.field {
-    flex: 1;
+  flex: 1;
 }
 
 .coord-fields {
-    display: flex;
-    gap: 0.75rem;
+  display: flex;
+  gap: 0.75rem;
 }
 
 .coord-fields>.field {
-    flex: 1;
-    min-width: 0;
+  flex: 1;
+  min-width: 0;
 }

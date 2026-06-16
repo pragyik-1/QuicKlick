@@ -1,8 +1,15 @@
 <script lang="ts">
   import { Card, Button, Input, Select, Switch, Row } from "bluenite";
-  import { untrack } from "svelte";
   import { clickerState } from "$lib/clickerState.svelte";
   import HotkeyInput from "$lib/HotkeyInput.svelte";
+  import {
+    Play,
+    Square,
+    Gauge,
+    Monitor,
+    MousePointer2,
+    Keyboard,
+  } from "lucide-svelte";
   import "./page.css";
 
   const DEVICE_OPTIONS = [
@@ -16,148 +23,100 @@
     { label: "Middle", value: "Middle" },
   ];
 
-  let device = $state<string>(clickerState.target.device);
-  let button = $state<string>(clickerState.target.button ?? "Left");
-  let keyCode = $state(clickerState.target.key_code ?? "");
-  let useCustomPos = $state(clickerState.target.mouse_position !== null);
-  let posX = $state(String(clickerState.target.mouse_position?.[0] ?? 0));
-  let posY = $state(String(clickerState.target.mouse_position?.[1] ?? 0));
-  let delay = $state(String(clickerState.delay));
-
-  $effect(() => {
-    device = clickerState.target.device;
-    button = clickerState.target.button ?? "Left";
-    keyCode = clickerState.target.key_code ?? "";
-    const mp = clickerState.target.mouse_position;
-    useCustomPos = mp !== null;
-    if (mp) {
-      posX = String(mp[0]);
-      posY = String(mp[1]);
-    }
-    delay = String(clickerState.delay);
-  });
-
-  function applyTarget() {
-    clickerState.setTarget({
-      device: device as "Mouse" | "Keyboard",
-      button:
-        device === "Mouse" ? (button as "Left" | "Right" | "Middle") : null,
-      key_code: device === "Keyboard" ? keyCode : null,
-      mouse_position:
-        device === "Mouse" && useCustomPos
-          ? [parseInt(posX) || 0, parseInt(posY) || 0]
-          : null,
-    });
-  }
-
-  let prevDevice = untrack(() => device);
-  let prevButton = untrack(() => button);
-  let prevUseCustomPos = untrack(() => useCustomPos);
-
-  $effect(() => {
-    if (device !== prevDevice) {
-      prevDevice = device;
-      applyTarget();
-    }
-  });
-
-  $effect(() => {
-    if (button !== prevButton) {
-      prevButton = button;
-      applyTarget();
-    }
-  });
-
-  $effect(() => {
-    if (useCustomPos !== prevUseCustomPos) {
-      prevUseCustomPos = useCustomPos;
-      applyTarget();
-    }
-  });
-
   function onKeyCapture(e: { key: string; modifiers: string[] }) {
-    keyCode = e.key;
-    applyTarget();
-  }
-
-  let delayTimer: ReturnType<typeof setTimeout>;
-  function onDelayInput(e: Event) {
-    delay = (e.target as HTMLInputElement).value;
-    clearTimeout(delayTimer);
-    delayTimer = setTimeout(() => {
-      const num = parseInt(delay, 10);
-      if (!isNaN(num) && num > 0) clickerState.setDelay(num);
-    }, 400);
+    clickerState.keyCode = e.key;
   }
 </script>
 
-<Card
-  title="Control"
-  style="height: auto; display: flex; flex-direction: column;"
->
+<Card style="height: auto; display: flex; flex-direction: column;">
   <div class="toggle-section" style="margin-bottom: 1.25rem;">
     <div class="toggle-status">
-      <span class="toggle-dot" class:active={clickerState.is_running}></span>
+      <span class="toggle-dot" class:active={clickerState.isRunning}></span>
       <div>
         <div class="toggle-label">
-          {clickerState.is_running ? "Running" : "Stopped"}
+          {clickerState.isRunning ? "Running" : "Stopped"}
         </div>
         <div class="toggle-sublabel">Press the button to toggle</div>
       </div>
     </div>
     <Row gap={1}>
       <Button
-        variant={clickerState.is_running ? "outline" : "fill"}
-        disabled={clickerState.is_running}
-        onclick={() => clickerState.toggle()}>Start</Button
+        variant={clickerState.isRunning ? "outline" : "fill"}
+        disabled={clickerState.isRunning}
+        onclick={() => clickerState.toggle()}
       >
+        <span style="display: flex; align-items: center; gap: 0.4rem;">
+          <Play size={16} /> Start
+        </span>
+      </Button>
       <Button
-        variant={clickerState.is_running ? "fill" : "outline"}
-        disabled={!clickerState.is_running}
-        onclick={() => clickerState.toggle()}>Stop</Button
+        variant={clickerState.isRunning ? "fill" : "outline"}
+        disabled={!clickerState.isRunning}
+        onclick={() => clickerState.toggle()}
       >
+        <span style="display: flex; align-items: center; gap: 0.4rem;">
+          <Square size={16} /> Stop
+        </span>
+      </Button>
     </Row>
   </div>
 
   <div class="field">
-    <label class="field-label" for="delay-input">Interval (ms)</label>
+    <label class="field-label" for="cps-input">
+      <Gauge size={16} />
+      Clicks per second
+    </label>
     <Input
       style="color: var(--primary-text);"
-      id="delay-input"
+      id="cps-input"
       type="number"
-      value={delay}
-      oninput={onDelayInput}
-      min="1"
-      placeholder="100"
+      bind:value={clickerState.cps}
+      min="0.01"
+      step="0.1"
+      placeholder="10"
     />
   </div>
 
   <div style="margin-top: 0.75rem;" class="field">
-    <label class="field-label" for="device-select">Device</label>
+    <label class="field-label" for="device-select">
+      {#if clickerState.device === "Mouse"}
+        <Monitor size={16} />
+      {:else}
+        <Keyboard size={16} />
+      {/if}
+      Device
+    </label>
     <Select
       id="device-select"
       style="color: var(--primary-text);"
       options={DEVICE_OPTIONS}
-      bind:value={device}
+      bind:value={clickerState.device}
     />
   </div>
 
-  {#if device === "Mouse"}
+  {#if clickerState.device === "Mouse"}
     <div class="field" style="margin-top: 0.75rem;">
-      <label class="field-label" for="button-select">Mouse Button</label>
+      <label class="field-label" for="button-select">
+        <MousePointer2 size={16} />
+        Mouse Button
+      </label>
       <Select
         id="button-select"
         style="color: var(--primary-text);"
         options={BUTTON_OPTIONS}
-        bind:value={button}
+        bind:value={clickerState.button}
       />
     </div>
 
     <div style="margin-top: 0.75rem;">
-      <Switch label="Custom Position" size="sm" bind:checked={useCustomPos} />
+      <Switch
+        label="Custom Position"
+        size="sm"
+        bind:checked={clickerState.useCustomPos}
+      />
     </div>
 
-    {#if useCustomPos}
+    {#if clickerState.useCustomPos}
       <div class="coord-fields" style="margin-top: 0.75rem;">
         <div class="field">
           <label class="field-label" for="pos-x">X</label>
@@ -165,11 +124,7 @@
             style="color: var(--primary-text);"
             id="pos-x"
             type="number"
-            value={posX}
-            oninput={(e) => {
-              posX = (e.target as HTMLInputElement).value;
-              applyTarget();
-            }}
+            bind:value={clickerState.posX}
             placeholder="0"
           />
         </div>
@@ -179,11 +134,7 @@
             style="color: var(--primary-text);"
             id="pos-y"
             type="number"
-            value={posY}
-            oninput={(e) => {
-              posY = (e.target as HTMLInputElement).value;
-              applyTarget();
-            }}
+            bind:value={clickerState.posY}
             placeholder="0"
           />
         </div>
@@ -191,9 +142,12 @@
     {/if}
   {:else}
     <div class="field" style="margin-top: 0.75rem;">
-      <span class="field-label">Key to Press</span>
+      <span class="field-label">
+        <Keyboard size={16} />
+        Key to Press
+      </span>
       <HotkeyInput
-        value={keyCode}
+        value={clickerState.keyCode}
         onCapture={onKeyCapture}
         placeholder="Click to set key..."
       />
