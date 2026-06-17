@@ -27,6 +27,7 @@
     const CLICK_TYPE_OPTIONS = [
         { label: "Single Click", value: "Single" },
         { label: "Double Click", value: "Double" },
+        { label: "Randomized", value: "Randomized" },
     ];
 
     function onKeyCapture(e: { key: string; modifiers: string[] }) {
@@ -184,6 +185,22 @@
                 bind:value={clickerState.clickType}
             />
         </div>
+
+        {#if clickerState.clickType === "Randomized"}
+            <div class="field-compact" style="margin-top: 1rem;">
+                <label class="field-label-sm" for="adv-randomize">
+                    <MousePointerClick size={14} /> Variance (ms)
+                </label>
+                <Input
+                    style="color: var(--primary-text);"
+                    id="adv-randomize"
+                    type="number"
+                    bind:value={clickerState.randomizeAmount}
+                    min="0"
+                    placeholder="0"
+                />
+            </div>
+        {/if}
     </Card>
 </div>
 

@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter, Listener, Manager};
 
 pub mod automator;
 mod frontend_api;
+pub mod scheduler;
 pub mod shortcuts;
 pub mod utils;
 

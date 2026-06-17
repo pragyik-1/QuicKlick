@@ -15,6 +15,7 @@ pub struct ClickTarget {
     pub button: Option<MouseButton>,
     pub mouse_position: Option<(i32, i32)>,
     pub click_type: ClickType,
+    pub randomize_amount: Option<u64>,
 }
 
 impl ClickTarget {
@@ -24,12 +25,14 @@ impl ClickTarget {
         let key_code = KeyCode::from_str(payload.key_code.as_deref());
         let mouse_position = payload.mouse_position;
         let click_type = ClickType::from_str(&payload.click_type)?;
+        let randomize_amount = payload.randomize_amount;
         Some(Self {
             key_code,
             device,
             button,
             mouse_position,
             click_type,
+            randomize_amount,
         })
     }
 }
@@ -79,7 +82,7 @@ impl MouseButton {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ClickType {
     Single,
     Double,
@@ -118,7 +121,7 @@ impl Automator {
             Device::Mouse => {
                 if let Some(button) = target.button {
                     match target.click_type {
-                        ClickType::Single => {
+                        ClickType::Single | ClickType::Randomized => {
                             let _ = self.mouse_click(button, target.mouse_position);
                         }
                         ClickType::Double => {
@@ -127,21 +130,19 @@ impl Automator {
                             self.timer.sleep_remaining(Self::DOUBLE_CLICK_INTERVAL);
                             let _ = self.mouse_click(button_clone, target.mouse_position);
                         }
-                        ClickType::Randomized => todo!("Randomized click not implemented yet"),
                     }
                 }
             }
             Device::Keyboard => {
                 if let Some(key) = target.key_code {
                     match target.click_type {
-                        ClickType::Single => self.key_click(key),
+                        ClickType::Single | ClickType::Randomized => self.key_click(key),
                         ClickType::Double => {
                             let key_clone = key.clone();
                             let _ = self.key_click(key);
                             self.timer.sleep_remaining(Self::DOUBLE_CLICK_INTERVAL);
                             let _ = self.key_click(key_clone);
                         }
-                        ClickType::Randomized => todo!("Randomized click not implemented yet"),
                     }
                 }
             }

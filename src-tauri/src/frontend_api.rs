@@ -12,6 +12,7 @@ pub struct ClickTargetPayload {
     pub button: Option<String>,
     pub mouse_position: Option<(i32, i32)>,
     pub click_type: String,
+    pub randomize_amount: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

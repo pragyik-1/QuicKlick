@@ -6,7 +6,8 @@ export interface ClickTarget {
   button: 'Left' | 'Right' | 'Middle' | null;
   keyCode: string | null;
   mousePosition: [number, number] | null;
-  clickType: 'Single' | 'Double';
+  clickType: 'Single' | 'Double' | 'Randomized';
+  randomizeAmount?: number;
 }
 
 interface BackendAppState {
@@ -18,6 +19,7 @@ interface BackendAppState {
     key_code: string | null;
     mouse_position: [number, number] | null;
     click_type: string;
+    randomize_amount: number | null;
   };
 }
 
@@ -32,7 +34,8 @@ class ClickerState {
   private _useCustomPos = $state<boolean>(false);
   private _posX = $state<string>("0");
   private _posY = $state<string>("0");
-  private _clickType = $state<"Single" | "Double">("Single");
+  private _clickType = $state<"Single" | "Double" | "Randomized">("Single");
+  private _randomizeAmount = $state<string>("0");
 
   get cps() { return this._cps; }
   set cps(val: string) {
@@ -62,7 +65,15 @@ class ClickerState {
   set posY(val: string) { this._posY = val; this.applyTarget(); }
 
   get clickType() { return this._clickType; }
-  set clickType(val: "Single" | "Double") { this._clickType = val; this.applyTarget(); }
+  set clickType(val: "Single" | "Double" | "Randomized") { this._clickType = val; this.applyTarget(); }
+
+  get randomizeAmount() { return this._randomizeAmount; }
+  set randomizeAmount(val: string) {
+    this._randomizeAmount = val; const randNum = parseFloat(val);
+    if (!isNaN(randNum) && randNum >= 0) {
+      this.applyTarget();
+    }
+  }
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -119,7 +130,8 @@ class ClickerState {
           this._posY = String(state.target.mouse_position[1]);
         }
       }
-      this._clickType = (state.target.click_type as "Single" | "Double") ?? "Single";
+      this._clickType = (state.target.click_type as "Single" | "Double" | "Randomized") ?? "Single";
+      this._randomizeAmount = (state.target.randomize_amount ?? 0).toString();
     }
   }
 
@@ -132,7 +144,8 @@ class ClickerState {
         mouse_position: this._device === 'Mouse' && this._useCustomPos
           ? [parseInt(this._posX) || 0, parseInt(this._posY) || 0]
           : null,
-        click_type: this._clickType
+        click_type: this._clickType,
+        randomize_amount: this._clickType === 'Randomized' ? (parseInt(this._randomizeAmount) || 0) : null
       };
       await invoke('set_target_cmd', { target: payload });
     } catch (err) {

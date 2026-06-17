@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use quicklick_lib::{
     automator::{Automator, ClickTarget, ClickType, Device, MouseButton},
-    utils, AppState, ClickerSig,
+    scheduler, utils, AppState, ClickerSig,
 };
 use std::{
     sync::{
@@ -29,6 +29,7 @@ fn main() {
             button: Some(MouseButton::Left),
             mouse_position: None,
             click_type: ClickType::Single,
+            randomize_amount: None,
         }),
     });
 
@@ -37,6 +38,7 @@ fn main() {
         thread::sleep(Duration::from_secs(1));
 
         let mut automator: Automator = Automator::new();
+        let scheduler = scheduler::Scheduler::new(&rx);
         loop {
             if !app_state_clone.is_running.load(Ordering::SeqCst) {
                 if let Ok(ClickerSig::Start) = rx.recv() {
@@ -47,33 +49,15 @@ fn main() {
             } else {
                 let target = app_state_clone.target.lock().unwrap().clone();
                 let cps = f64::from_bits(app_state_clone.cps.load(Ordering::SeqCst));
-                let delay = if cps > 0.0 {
-                    Duration::from_secs_f64(1.0 / cps)
-                } else {
-                    Duration::from_secs(1)
-                };
+
                 let start_time = Instant::now();
-                automator.handle_click(target);
-
+                automator.handle_click(target.clone());
                 let elapsed = start_time.elapsed();
-                let wait_time = delay.saturating_sub(elapsed);
 
-                if wait_time.is_zero() {
-                    match rx.try_recv() {
-                        Ok(ClickerSig::Stop) => {
-                            app_state_clone.is_running.store(false, Ordering::SeqCst)
-                        }
-                        Ok(ClickerSig::Start) | Err(mpsc::TryRecvError::Empty) => (),
-                        Err(mpsc::TryRecvError::Disconnected) => break,
-                    }
-                } else {
-                    match rx.recv_timeout(wait_time) {
-                        Ok(ClickerSig::Stop) => {
-                            app_state_clone.is_running.store(false, Ordering::SeqCst)
-                        }
-                        Ok(ClickerSig::Start) | Err(mpsc::RecvTimeoutError::Timeout) => (),
-                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                    }
+                let should_continue = scheduler.wait_for_next_cycle(cps, &target, elapsed);
+
+                if !should_continue {
+                    app_state_clone.is_running.store(false, Ordering::SeqCst);
                 }
             }
         }
