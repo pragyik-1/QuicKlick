@@ -4,6 +4,19 @@ use std::time::{Duration, Instant};
 use enigo::Key;
 use serde::{Deserialize, Serialize};
 
+pub fn is_wayland() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var("XDG_SESSION_TYPE")
+            .map(|val| val.to_lowercase() == "wayland")
+            .unwrap_or_else(|_| std::env::var("WAYLAND_DISPLAY").is_ok())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum KeyCode {
     Char(char),
@@ -98,7 +111,7 @@ impl KeyCode {
         }
     }
 
-    pub fn to_enigo_key(self) -> enigo::Key {
+    pub fn to_enigo_key(&self) -> enigo::Key {
         match self {
             KeyCode::Space => Key::Space,
             KeyCode::Enter => Key::Return,
@@ -130,7 +143,7 @@ impl KeyCode {
                 12 => Key::F12,
                 _ => Key::Control, // TODO: Handle this case properly.
             },
-            KeyCode::Char(c) => Key::Unicode(c),
+            KeyCode::Char(c) => Key::Unicode(*c),
             KeyCode::Unknown(s) => Key::Unicode(s.chars().next().unwrap()),
         }
     }

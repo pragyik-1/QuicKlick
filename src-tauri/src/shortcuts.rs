@@ -2,24 +2,11 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
-use crate::utils::{InputEvent, KeyCode, Modifier};
+use crate::utils::{is_wayland, InputEvent, KeyCode, Modifier};
 
 pub const ACTION_TOGGLE: &str = "toggle-clicker";
 pub const ACTION_START: &str = "start-clicker";
 pub const ACTION_STOP: &str = "stop-clicker";
-
-pub fn is_wayland() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        std::env::var("XDG_SESSION_TYPE")
-            .map(|val| val.to_lowercase() == "wayland")
-            .unwrap_or_else(|_| std::env::var("WAYLAND_DISPLAY").is_ok())
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        false
-    }
-}
 
 pub fn get_action_description(id: &str) -> &'static str {
     match id {

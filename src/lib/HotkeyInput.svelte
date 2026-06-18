@@ -1,88 +1,82 @@
 <script lang="ts">
-  const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta"]);
+  const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta'])
 
-  type CaptureEvent = { key: string; modifiers: string[] };
+  type CaptureEvent = { key: string; modifiers: string[] }
 
   type Props = {
-    value?: string;
-    onCapture?: (event: CaptureEvent) => void;
-    placeholder?: string;
-  };
+    value?: string
+    onCapture?: (event: CaptureEvent) => void
+    placeholder?: string
+  }
 
-  let {
-    value = "",
-    onCapture,
-    placeholder = "Click to bind...",
-  }: Props = $props();
+  let { value = '', onCapture, placeholder = 'Click to bind...' }: Props = $props()
 
-  let listening = $state(false);
-  let buttonRef = $state<HTMLButtonElement | null>(null);
+  let listening = $state(false)
+  let buttonRef = $state<HTMLButtonElement | null>(null)
 
   function normalizeKey(e: KeyboardEvent): string | null {
-    if (MODIFIER_KEYS.has(e.key)) return null;
+    if (MODIFIER_KEYS.has(e.key)) return null
 
-    if (e.code === "Space") return "space";
+    if (e.code === 'Space') return 'space'
 
-    if (e.code.startsWith("Key")) return e.code.slice(3).toLowerCase();
-    if (e.code.startsWith("Digit")) return e.code.slice(5);
+    if (e.code.startsWith('Key')) return e.code.slice(3).toLowerCase()
+    if (e.code.startsWith('Digit')) return e.code.slice(5)
 
     const map: Record<string, string> = {
-      Enter: "enter",
-      Tab: "tab",
-      Backspace: "backspace",
-      Escape: "escape",
-      ArrowLeft: "left",
-      ArrowRight: "right",
-      ArrowUp: "up",
-      ArrowDown: "down",
-      Home: "home",
-      End: "end",
-      PageUp: "pageup",
-      PageDown: "pagedown",
-      Insert: "insert",
-      Delete: "delete",
-    };
-    if (map[e.key]) return map[e.key];
+      Enter: 'enter',
+      Tab: 'tab',
+      Backspace: 'backspace',
+      Escape: 'escape',
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+      ArrowUp: 'up',
+      ArrowDown: 'down',
+      Home: 'home',
+      End: 'end',
+      PageUp: 'pageup',
+      PageDown: 'pagedown',
+      Insert: 'insert',
+      Delete: 'delete',
+    }
+    if (map[e.key]) return map[e.key]
 
-    const fMatch = e.code.match(/^F(\d+)$/);
-    if (fMatch) return `f${fMatch[1]}`;
+    const fMatch = e.code.match(/^F(\d+)$/)
+    if (fMatch) return `f${fMatch[1]}`
 
-    return e.key.length === 1 ? e.key.toLowerCase() : null;
+    return e.key.length === 1 ? e.key.toLowerCase() : null
   }
 
   function getModifiers(e: KeyboardEvent): string[] {
-    const mods: string[] = [];
-    if (e.ctrlKey) mods.push("ctrl");
-    if (e.shiftKey) mods.push("shift");
-    if (e.altKey) mods.push("alt");
-    if (e.metaKey) mods.push("meta");
-    return mods;
+    const mods: string[] = []
+    if (e.ctrlKey) mods.push('ctrl')
+    if (e.shiftKey) mods.push('shift')
+    if (e.altKey) mods.push('alt')
+    if (e.metaKey) mods.push('meta')
+    return mods
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault()
+    e.stopPropagation()
 
-    const key = normalizeKey(e);
-    if (!key) return;
+    const key = normalizeKey(e)
+    if (!key) return
 
-    listening = false;
-    buttonRef?.blur();
-    onCapture?.({ key, modifiers: getModifiers(e) });
+    listening = false
+    buttonRef?.blur()
+    onCapture?.({ key, modifiers: getModifiers(e) })
   }
 
   function startListening() {
-    listening = true;
+    listening = true
   }
 
   function handleBlur() {
-    listening = false;
+    listening = false
   }
 
-  let formattedValue = $derived(
-    value ? value.charAt(0).toUpperCase() + value.slice(1) : "",
-  );
-  let displayText = $derived(formattedValue || placeholder);
+  let formattedValue = $derived(value ? value.charAt(0).toUpperCase() + value.slice(1) : '')
+  let displayText = $derived(formattedValue || placeholder)
 </script>
 
 <button

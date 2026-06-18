@@ -1,30 +1,12 @@
 <script lang="ts">
-  import { Card, Button, Input, Select, Switch, Row } from "bluenite";
-  import { clickerState } from "$lib/clickerState.svelte";
-  import HotkeyInput from "$lib/HotkeyInput.svelte";
-  import {
-    Play,
-    Square,
-    Gauge,
-    Monitor,
-    MousePointer2,
-    Keyboard,
-  } from "lucide-svelte";
-  import "./page.css";
-
-  const DEVICE_OPTIONS = [
-    { label: "Mouse", value: "Mouse" },
-    { label: "Keyboard", value: "Keyboard" },
-  ];
-
-  const BUTTON_OPTIONS = [
-    { label: "Left", value: "Left" },
-    { label: "Right", value: "Right" },
-    { label: "Middle", value: "Middle" },
-  ];
+  import { Card, Button, Input, Select, Switch, Row } from 'bluenite'
+  import { clickerState } from '$lib/clickerState.svelte'
+  import HotkeyInput from '$lib/HotkeyInput.svelte'
+  import { Play, Square, Gauge, Monitor, MousePointer2, Keyboard } from 'lucide-svelte'
+  import { DEVICE_OPTIONS, BUTTON_OPTIONS } from '../constants'
 
   function onKeyCapture(e: { key: string; modifiers: string[] }) {
-    clickerState.keyCode = e.key;
+    clickerState.keyCode = e.key
   }
 </script>
 
@@ -34,14 +16,14 @@
       <span class="toggle-dot" class:active={clickerState.isRunning}></span>
       <div>
         <div class="toggle-label">
-          {clickerState.isRunning ? "Running" : "Stopped"}
+          {clickerState.isRunning ? 'Running' : 'Stopped'}
         </div>
         <div class="toggle-sublabel">Press the button to toggle</div>
       </div>
     </div>
     <Row gap={1}>
       <Button
-        variant={clickerState.isRunning ? "outline" : "fill"}
+        variant={clickerState.isRunning ? 'outline' : 'fill'}
         disabled={clickerState.isRunning}
         onclick={() => clickerState.toggle()}
       >
@@ -50,7 +32,7 @@
         </span>
       </Button>
       <Button
-        variant={clickerState.isRunning ? "fill" : "outline"}
+        variant={clickerState.isRunning ? 'fill' : 'outline'}
         disabled={!clickerState.isRunning}
         onclick={() => clickerState.toggle()}
       >
@@ -79,7 +61,7 @@
 
   <div style="margin-top: 0.75rem;" class="field">
     <label class="field-label" for="device-select">
-      {#if clickerState.device === "Mouse"}
+      {#if clickerState.device === 'Mouse'}
         <Monitor size={16} />
       {:else}
         <Keyboard size={16} />
@@ -94,7 +76,7 @@
     />
   </div>
 
-  {#if clickerState.device === "Mouse"}
+  {#if clickerState.device === 'Mouse'}
     <div class="field" style="margin-top: 0.75rem;">
       <label class="field-label" for="button-select">
         <MousePointer2 size={16} />
@@ -109,11 +91,7 @@
     </div>
 
     <div style="margin-top: 0.75rem;">
-      <Switch
-        label="Custom Position"
-        size="sm"
-        bind:checked={clickerState.useCustomPos}
-      />
+      <Switch label="Custom Position" size="sm" bind:checked={clickerState.useCustomPos} />
     </div>
 
     {#if clickerState.useCustomPos}
@@ -154,3 +132,71 @@
     </div>
   {/if}
 </Card>
+
+<style>
+  .toggle-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .toggle-status {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .toggle-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--danger);
+    transition: background-color 0.3s ease;
+    flex-shrink: 0;
+  }
+
+  .toggle-dot.active {
+    background-color: var(--success);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    animation: blink 1.2s infinite alternate;
+  }
+
+  .toggle-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--primary-text);
+  }
+
+  .toggle-sublabel {
+    font-size: 0.75rem;
+    color: var(--muted-text);
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .field-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--secondary-text);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .coord-fields {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .coord-fields > .field {
+    flex: 1;
+    min-width: 0;
+  }
+</style>

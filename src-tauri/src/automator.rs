@@ -1,12 +1,13 @@
 use std::time::Duration;
 
-use crate::{
-    frontend_api::ClickTargetPayload,
-    utils::{KeyCode, MacroTimer},
-    Errors,
-};
+use crate::frontend_api::ClickTargetPayload;
+use crate::utils::{KeyCode, MacroTimer};
 use enigo::{Enigo, Keyboard, Mouse, Settings};
 use serde::{Deserialize, Serialize};
+
+// ---------------------------------------------------------------------------
+// Click target data types
+// ---------------------------------------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ClickTarget {
@@ -19,20 +20,14 @@ pub struct ClickTarget {
 }
 
 impl ClickTarget {
-    pub fn from_payload(payload: &ClickTargetPayload) -> Option<Self> {
-        let device: Device = Device::from_str(&payload.device)?;
-        let button = MouseButton::from_str(payload.button.as_deref());
-        let key_code = KeyCode::from_str(payload.key_code.as_deref());
-        let mouse_position = payload.mouse_position;
-        let click_type = ClickType::from_str(&payload.click_type)?;
-        let randomize_amount = payload.randomize_amount;
+    pub fn from_payload(p: &ClickTargetPayload) -> Option<Self> {
         Some(Self {
-            key_code,
-            device,
-            button,
-            mouse_position,
-            click_type,
-            randomize_amount,
+            device: Device::from_str(&p.device)?,
+            button: MouseButton::from_str(p.button.as_deref()),
+            key_code: KeyCode::from_str(p.key_code.as_deref()),
+            mouse_position: p.mouse_position,
+            click_type: ClickType::from_str(&p.click_type)?,
+            randomize_amount: p.randomize_amount,
         })
     }
 }
@@ -46,8 +41,8 @@ pub enum Device {
 impl Device {
     fn from_str(s: &str) -> Option<Self> {
         match s {
-            "Mouse" => Some(Device::Mouse),
-            "Keyboard" => Some(Device::Keyboard),
+            "Mouse" => Some(Self::Mouse),
+            "Keyboard" => Some(Self::Keyboard),
             _ => None,
         }
     }
@@ -61,22 +56,19 @@ pub enum MouseButton {
 }
 
 impl MouseButton {
-    pub fn to_enigo_button(&self) -> enigo::Button {
+    fn to_enigo(&self) -> enigo::Button {
         match self {
-            MouseButton::Left => enigo::Button::Left,
-            MouseButton::Right => enigo::Button::Right,
-            MouseButton::Middle => enigo::Button::Middle,
+            Self::Left => enigo::Button::Left,
+            Self::Right => enigo::Button::Right,
+            Self::Middle => enigo::Button::Middle,
         }
     }
+
     pub fn from_str(s: Option<&str>) -> Option<Self> {
-        if s.is_none() {
-            return None;
-        }
-        let s = s.unwrap();
-        match s {
-            "Left" => Some(MouseButton::Left),
-            "Right" => Some(MouseButton::Right),
-            "Middle" => Some(MouseButton::Middle),
+        match s? {
+            "Left" => Some(Self::Left),
+            "Right" => Some(Self::Right),
+            "Middle" => Some(Self::Middle),
             _ => None,
         }
     }
@@ -90,16 +82,15 @@ pub enum ClickType {
 }
 
 impl ClickType {
-    fn from_str(s: &str) -> Option<Self> {
+    pub fn from_str(s: &str) -> Option<Self> {
         match s {
-            "Single" => Some(ClickType::Single),
-            "Double" => Some(ClickType::Double),
-            "Randomized" => Some(ClickType::Randomized),
+            "Single" => Some(Self::Single),
+            "Double" => Some(Self::Double),
+            "Randomized" => Some(Self::Randomized),
             _ => None,
         }
     }
 }
-
 pub struct Automator {
     enigo: Enigo,
     timer: MacroTimer,
@@ -107,48 +98,44 @@ pub struct Automator {
 }
 
 impl Automator {
-    const DOUBLE_CLICK_INTERVAL: Duration = Duration::from_millis(15);
+    const DOUBLE_CLICK_GAP: Duration = Duration::from_millis(15);
+
     pub fn new() -> Self {
         Self {
-            enigo: Enigo::new(&Settings::default()).expect("Failed to initialize Engio"),
+            enigo: Enigo::new(&Settings::default()).expect("Failed to initialize Enigo"),
             timer: MacroTimer::start(),
             last_pos: None,
         }
     }
-    pub fn handle_click(&mut self, target: ClickTarget) {
+
+    pub fn handle_click(&mut self, target: &ClickTarget) {
         self.timer.reset();
+
+        let is_double = target.click_type == ClickType::Double;
+
         match target.device {
             Device::Mouse => {
-                if let Some(button) = target.button {
-                    match target.click_type {
-                        ClickType::Single | ClickType::Randomized => {
-                            let _ = self.mouse_click(button, target.mouse_position);
-                        }
-                        ClickType::Double => {
-                            let button_clone = button.clone();
-                            let _ = self.mouse_click(button, target.mouse_position);
-                            self.timer.sleep_remaining(Self::DOUBLE_CLICK_INTERVAL);
-                            let _ = self.mouse_click(button_clone, target.mouse_position);
-                        }
+                if let Some(btn) = &target.button {
+                    self.mouse_click(btn, target.mouse_position);
+                    if is_double {
+                        self.timer.sleep_remaining(Self::DOUBLE_CLICK_GAP);
+                        self.mouse_click(btn, target.mouse_position);
                     }
                 }
             }
             Device::Keyboard => {
-                if let Some(key) = target.key_code {
-                    match target.click_type {
-                        ClickType::Single | ClickType::Randomized => self.key_click(key),
-                        ClickType::Double => {
-                            let key_clone = key.clone();
-                            let _ = self.key_click(key);
-                            self.timer.sleep_remaining(Self::DOUBLE_CLICK_INTERVAL);
-                            let _ = self.key_click(key_clone);
-                        }
+                if let Some(key) = &target.key_code {
+                    self.key_click(key);
+                    if is_double {
+                        self.timer.sleep_remaining(Self::DOUBLE_CLICK_GAP);
+                        self.key_click(key);
                     }
                 }
             }
         }
     }
-    fn mouse_click(&mut self, button: MouseButton, pos: Option<(i32, i32)>) -> Result<(), Errors> {
+
+    fn mouse_click(&mut self, button: &MouseButton, pos: Option<(i32, i32)>) {
         if let Some((x, y)) = pos {
             if self.last_pos != Some((x, y)) {
                 let _ = self.enigo.move_mouse(x, y, enigo::Coordinate::Abs);
@@ -157,12 +144,10 @@ impl Automator {
         }
         let _ = self
             .enigo
-            .button(button.to_enigo_button(), enigo::Direction::Click);
-        Ok(())
+            .button(button.to_enigo(), enigo::Direction::Click);
     }
-    fn key_click(&mut self, key: KeyCode) {
-        self.enigo
-            .key(key.to_enigo_key(), enigo::Direction::Click)
-            .unwrap();
+
+    fn key_click(&mut self, key: &KeyCode) {
+        let _ = self.enigo.key(key.to_enigo_key(), enigo::Direction::Click);
     }
 }

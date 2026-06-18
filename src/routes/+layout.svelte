@@ -1,55 +1,56 @@
 <script lang="ts">
-    import "../app.css";
-    import { NavBar, ToastManager } from "bluenite";
-    import { page } from "$app/state";
-    import { clickerState } from "$lib/clickerState.svelte";
-    import { Settings, House, SlidersVertical } from "lucide-svelte";
-    let { children } = $props();
+  import '../app.css'
+  import { NavBar, ToastManager } from 'bluenite'
+  import { page } from '$app/state'
+  import { clickerState } from '$lib/clickerState.svelte'
+  import { Settings, House, SlidersVertical } from 'lucide-svelte'
+  let { children } = $props()
 </script>
 
 <NavBar>
-    <a class="nav-brand" href="/">
-        <svg
-            class="brand-icon"
-            class:pulse={clickerState.isRunning}
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-        >
-            <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
-            <path d="M13 13l6 6" />
-        </svg>
-        QuicKlick
-    </a>
+  <a class="nav-brand" href="/">
+    <svg
+      class="brand-icon"
+      class:pulse={clickerState.isRunning}
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+      <path d="M13 13l6 6" />
+    </svg>
+    QuicKlick
+  </a>
 
-    <nav class="nav-links">
-        <a class="nav-link" class:active={page.url.pathname === "/"} href="/">
-            <House size={18} /> Home
-        </a>
-        <a
-            class="nav-link"
-            class:active={page.url.pathname === "/advanced"}
-            href="/advanced"
-        >
-            <SlidersVertical size={18} /> Advanced
-        </a>
-        <a
-            class="nav-link"
-            class:active={page.url.pathname === "/settings"}
-            href="/settings"
-        >
-            <Settings size={18} /> Settings
-        </a>
-    </nav>
+  <nav class="nav-links">
+    <a class="nav-link" class:active={page.url.pathname === '/'} href="/">
+      <House size={18} /> Home
+    </a>
+    <a class="nav-link" class:active={page.url.pathname === '/advanced'} href="/advanced">
+      <SlidersVertical size={18} /> Advanced
+    </a>
+    <a class="nav-link" class:active={page.url.pathname === '/settings'} href="/settings">
+      <Settings size={18} /> Settings
+    </a>
+  </nav>
 </NavBar>
 
 <div class="app-content">
-    {@render children()}
+  {@render children()}
 </div>
 
 <ToastManager />
+
+<style>
+  .app-content {
+    max-width: 720px;
+    margin: 1.5rem auto;
+    padding: 0 1.5rem;
+    box-sizing: border-box;
+  }
+</style>
