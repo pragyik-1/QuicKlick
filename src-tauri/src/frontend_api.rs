@@ -4,7 +4,8 @@ use crate::utils::{InputEvent, KeyCode, Modifier};
 use crate::{resolve_state, set_active, Errors};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
-use tauri::{AppHandle, Emitter};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ClickTargetPayload {
@@ -16,6 +17,12 @@ pub struct ClickTargetPayload {
     pub randomize_amount: Option<u64>,
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct SeqTargetPayload {
+    pub target: ClickTargetPayload,
+    pub wait_time: Option<u64>,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AppStateDto {
     pub is_running: bool,
@@ -24,6 +31,9 @@ pub struct AppStateDto {
     pub num_clicks: u64,
     pub is_limited: bool,
     pub target: ClickTarget,
+    pub mode: u8,
+    pub sequence: Vec<crate::automator::SeqTarget>,
+    pub repeat_sequence: bool,
 }
 
 #[tauri::command]
@@ -34,6 +44,24 @@ pub fn toggle_clicker_cmd(app: AppHandle) -> bool {
     will_run
 }
 
+fn update_saved_state(app: &AppHandle) {
+    let state = resolve_state(app);
+    let sm = app.state::<Arc<crate::settings::SettingsManager>>();
+    if sm.get().persist_app_state {
+        sm.update(|s| {
+            s.saved_state = Some(crate::settings::SavedState {
+                cps: f64::from_bits(state.cps.load(Ordering::SeqCst)),
+                click_limit: state.click_limit.load(Ordering::SeqCst),
+                is_limited: state.is_limited.load(Ordering::SeqCst),
+                target: state.target.lock().unwrap().clone(),
+                mode: state.mode.load(Ordering::SeqCst),
+                sequence: state.sequence.lock().unwrap().clone(),
+                repeat_sequence: state.repeat_sequence.load(Ordering::SeqCst),
+            });
+        });
+    }
+}
+
 #[tauri::command]
 pub fn set_target_cmd(app: AppHandle, target: ClickTargetPayload) {
     match ClickTarget::from_payload(&target) {
@@ -41,6 +69,7 @@ pub fn set_target_cmd(app: AppHandle, target: ClickTargetPayload) {
             let state = resolve_state(&app);
             *state.target.lock().unwrap() = t;
             println!("Set target: {:?}", state.target.lock().unwrap());
+            update_saved_state(&app);
         }
         None => {
             let _ = app.emit("error", Errors::InvalidTarget);
@@ -58,6 +87,7 @@ pub fn set_cps_cmd(app: AppHandle, cps: f64) {
     resolve_state(&app)
         .cps
         .store(cps.to_bits(), Ordering::SeqCst);
+    update_saved_state(&app);
 }
 
 #[tauri::command]
@@ -65,6 +95,7 @@ pub fn set_click_limit_cmd(app: AppHandle, limit: u64) {
     resolve_state(&app)
         .click_limit
         .store(limit, Ordering::SeqCst);
+    update_saved_state(&app);
 }
 
 #[tauri::command]
@@ -79,6 +110,36 @@ pub fn set_is_limited_cmd(app: AppHandle, is_limited: bool) {
     resolve_state(&app)
         .is_limited
         .store(is_limited, Ordering::SeqCst);
+    update_saved_state(&app);
+}
+
+#[tauri::command]
+pub fn set_mode_cmd(app: AppHandle, mode: u8) {
+    resolve_state(&app).mode.store(mode, Ordering::SeqCst);
+    update_saved_state(&app);
+}
+
+#[tauri::command]
+pub fn set_sequence_cmd(app: AppHandle, sequence: Vec<SeqTargetPayload>) {
+    let mut parsed_sequence = Vec::new();
+    for payload in sequence {
+        if let Some(target) = ClickTarget::from_payload(&payload.target) {
+            parsed_sequence.push(crate::automator::SeqTarget {
+                target,
+                wait_time: payload.wait_time,
+            });
+        }
+    }
+    
+    let state = resolve_state(&app);
+    *state.sequence.lock().unwrap() = parsed_sequence;
+    update_saved_state(&app);
+}
+
+#[tauri::command]
+pub fn set_repeat_sequence_cmd(app: AppHandle, repeat: bool) {
+    resolve_state(&app).repeat_sequence.store(repeat, Ordering::SeqCst);
+    update_saved_state(&app);
 }
 
 #[tauri::command]
@@ -93,7 +154,16 @@ pub fn update_shortcut_cmd(
         .filter_map(|s| Modifier::from_str(s))
         .collect();
     let key_code = KeyCode::from_str(Some(&new_key)).ok_or("Invalid key code")?;
-    ShortcutManager::update(&app, id, InputEvent::new(key_code, modifiers))
+    let event = InputEvent::new(key_code, modifiers);
+
+    ShortcutManager::update(&app, id.clone(), event.clone())?;
+
+    let sm = app.state::<Arc<crate::settings::SettingsManager>>();
+    sm.update(|s| {
+        s.shortcuts.insert(id, event);
+    });
+
+    Ok(())
 }
 
 #[tauri::command]

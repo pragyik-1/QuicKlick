@@ -45,7 +45,7 @@ impl<'a> Scheduler<'a> {
         1.0 / randomized_delay
     }
 
-    fn wait_or_stop(&self, wait: Duration) -> bool {
+    pub fn wait_or_stop(&self, wait: Duration) -> bool {
         if wait.is_zero() {
             !matches!(
                 self.rx.try_recv(),

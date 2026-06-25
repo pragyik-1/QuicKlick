@@ -1,13 +1,14 @@
 use crate::automator::ClickTarget;
 use crate::frontend_api::AppStateDto;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use tauri::{AppHandle, Emitter, Listener, Manager};
 
 pub mod automator;
 mod click_loop;
 mod frontend_api;
 pub mod scheduler;
+pub mod settings;
 pub mod shortcuts;
 pub mod utils;
 
@@ -28,6 +29,9 @@ pub struct AppState {
     pub num_clicks: AtomicU64,
     pub is_limited: AtomicBool,
     pub target: Mutex<ClickTarget>,
+    pub mode: AtomicU8,
+    pub sequence: Mutex<Vec<crate::automator::SeqTarget>>,
+    pub repeat_sequence: AtomicBool,
 }
 
 impl Default for AppState {
@@ -36,7 +40,7 @@ impl Default for AppState {
         Self {
             is_running: AtomicBool::new(false),
             cps: AtomicU64::new(10.0f64.to_bits()),
-            click_limit: AtomicU64::new(0),
+            click_limit: AtomicU64::new(100),
             num_clicks: AtomicU64::new(0),
             is_limited: AtomicBool::new(false),
             target: Mutex::new(ClickTarget {
@@ -47,6 +51,9 @@ impl Default for AppState {
                 click_type: ClickType::Single,
                 randomize_amount: None,
             }),
+            mode: AtomicU8::new(0),
+            sequence: Mutex::new(Vec::new()),
+            repeat_sequence: AtomicBool::new(true),
         }
     }
 }
@@ -60,6 +67,9 @@ impl AppState {
             num_clicks: self.num_clicks.load(Ordering::SeqCst),
             is_limited: self.is_limited.load(Ordering::SeqCst),
             target: self.target.lock().unwrap().clone(),
+            mode: self.mode.load(Ordering::SeqCst),
+            sequence: self.sequence.lock().unwrap().clone(),
+            repeat_sequence: self.repeat_sequence.load(Ordering::SeqCst),
         }
     }
 
@@ -117,7 +127,27 @@ pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>, rx: mpsc::Rec
             app.manage(app_state.clone());
             app.manage(tx);
 
-            shortcuts::ShortcutManager::init(app.handle(), shortcuts::ShortcutManager::default());
+            let settings_mgr = settings::SettingsManager::new(app.handle());
+            app.manage(settings_mgr.clone());
+
+            let settings_data = settings_mgr.get();
+            if settings_data.persist_app_state {
+                if let Some(saved) = settings_data.saved_state {
+                    app_state.cps.store(saved.cps.to_bits(), Ordering::SeqCst);
+                    app_state
+                        .click_limit
+                        .store(saved.click_limit, Ordering::SeqCst);
+                    app_state
+                        .is_limited
+                        .store(saved.is_limited, Ordering::SeqCst);
+                    *app_state.target.lock().unwrap() = saved.target;
+                    app_state.mode.store(saved.mode, Ordering::SeqCst);
+                    *app_state.sequence.lock().unwrap() = saved.sequence;
+                    app_state.repeat_sequence.store(saved.repeat_sequence, Ordering::SeqCst);
+                }
+            }
+
+            shortcuts::ShortcutManager::init(app.handle(), settings_data.shortcuts);
 
             let handle = app.handle().clone();
             app.listen("shortcut_triggered", move |event| {
@@ -143,8 +173,16 @@ pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>, rx: mpsc::Rec
             frontend_api::set_click_limit_cmd,
             frontend_api::set_num_clicks_cmd,
             frontend_api::set_is_limited_cmd,
+            frontend_api::set_mode_cmd,
+            frontend_api::set_sequence_cmd,
+            frontend_api::set_repeat_sequence_cmd,
             frontend_api::update_shortcut_cmd,
             frontend_api::is_wayland_cmd,
+            settings::get_settings_cmd,
+            settings::set_persist_app_state_cmd,
+            settings::save_preset_cmd,
+            settings::delete_preset_cmd,
+            settings::save_app_state_cmd,
         ]);
 
     if !utils::is_wayland() {

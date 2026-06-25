@@ -5,10 +5,6 @@ use crate::utils::{KeyCode, MacroTimer};
 use enigo::{Enigo, Keyboard, Mouse, Settings};
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------
-// Click target data types
-// ---------------------------------------------------------------------------
-
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ClickTarget {
     pub key_code: Option<KeyCode>,
@@ -30,6 +26,12 @@ impl ClickTarget {
             randomize_amount: p.randomize_amount,
         })
     }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct SeqTarget {
+    pub target: ClickTarget,
+    pub wait_time: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, Deserialize)]

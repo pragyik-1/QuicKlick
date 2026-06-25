@@ -67,7 +67,7 @@ impl Modifier {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct InputEvent {
     pub key: KeyCode,
     pub modifiers: Vec<Modifier>,

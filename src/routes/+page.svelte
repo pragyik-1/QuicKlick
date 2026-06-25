@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Card, Button, Input, Select, Switch, Row } from 'bluenite'
+  import { Card, Button, Input, Select, Switch, Row, toast } from 'bluenite'
   import { clickerState } from '$lib/clickerState.svelte'
   import HotkeyInput from '$lib/HotkeyInput.svelte'
   import { Play, Square, Gauge, Monitor, MousePointer2, Keyboard } from 'lucide-svelte'
@@ -9,6 +9,7 @@
     clickerState.keyCode = e.key
   }
 </script>
+
 
 <Card style="height: auto; display: flex; flex-direction: column;">
   <div class="toggle-section" style="margin-bottom: 1.25rem;">
@@ -42,6 +43,7 @@
       </Button>
     </Row>
   </div>
+
 
   <div class="field">
     <label class="field-label" for="cps-input">

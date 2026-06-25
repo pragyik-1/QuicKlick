@@ -14,8 +14,8 @@
     "windows": [
       {
         "title": "QuicKlick",
-        "width": 550,
-        "height": 575
+        "width": 525,
+        "height": 550
       }
     ],
     "security": {
