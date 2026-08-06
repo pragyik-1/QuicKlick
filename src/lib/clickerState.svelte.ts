@@ -260,7 +260,13 @@ class ClickerState {
       this.isLoaded = true
 
       await listen<BackendAppState>('state_change', (e) => this.updateFromBackend(e.payload))
-      await listen<unknown>('error', (e) => console.error('Clicker error:', e.payload))
+      await listen<unknown>('error', (e) => {
+        if (typeof e.payload === 'string') {
+          toast.show({ message: e.payload, variant: 'danger' })
+        } else {
+          console.error('Clicker error:', e.payload)
+        }
+      })
     } catch (err) {
       console.error('Failed to initialize clicker state:', err)
     }
@@ -282,6 +288,10 @@ class ClickerState {
   }
 
   async toggle() {
+    if (!this.isRunning && this._mode === 1 && this._sequence.length === 0) {
+      toast.show({ message: 'Add steps to the sequence before starting', variant: 'warn' })
+      return false
+    }
     try {
       const running = await invoke<boolean>('toggle_clicker_cmd')
       this.isRunning = running
@@ -412,13 +422,16 @@ class ClickerState {
 
     if (typeof state.cps === 'number') {
       const current = parseFloat(this._cps)
-      if (isNaN(current) || Math.abs(current - state.cps) > 0.001) {
+      // Only reflect the backend value when the user isn't mid-edit (the field
+      // is empty/invalid while typing), otherwise clearing the input would be
+      // immediately undone by the sync after every command.
+      if (!isNaN(current) && Math.abs(current - state.cps) > 0.001) {
         this._cps = state.cps.toString()
       }
     }
     if (typeof state.click_limit === 'number') {
       const current = parseInt(this._clickLimit)
-      if (isNaN(current) || current !== state.click_limit) {
+      if (!isNaN(current) && current !== state.click_limit) {
         this._clickLimit = state.click_limit.toString()
       }
     }
@@ -430,11 +443,17 @@ class ClickerState {
       this._keyCode = t.key_code ?? ''
       this._useCustomPos = t.mouse_position !== null
       if (t.mouse_position) {
-        if (parseInt(this._posX) !== t.mouse_position[0]) this._posX = String(t.mouse_position[0])
-        if (parseInt(this._posY) !== t.mouse_position[1]) this._posY = String(t.mouse_position[1])
+        const curX = parseInt(this._posX)
+        if (!isNaN(curX) && curX !== t.mouse_position[0]) this._posX = String(t.mouse_position[0])
+        const curY = parseInt(this._posY)
+        if (!isNaN(curY) && curY !== t.mouse_position[1]) this._posY = String(t.mouse_position[1])
       }
       this._clickType = (t.click_type as 'Single' | 'Double' | 'Randomized') ?? 'Single'
-      this._randomizeAmount = (t.randomize_amount ?? 0).toString()
+      const curRandomize = parseInt(this._randomizeAmount)
+      const backendRandomize = t.randomize_amount ?? 0
+      if (!isNaN(curRandomize) && curRandomize !== backendRandomize) {
+        this._randomizeAmount = backendRandomize.toString()
+      }
     }
   }
 }

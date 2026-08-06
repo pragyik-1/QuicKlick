@@ -4,6 +4,9 @@ use std::time::{Duration, Instant};
 use enigo::Key;
 use serde::{Deserialize, Serialize};
 
+pub const MODE_NORMAL: u8 = 0;
+pub const MODE_SEQUENCE: u8 = 1;
+
 pub fn is_wayland() -> bool {
     #[cfg(target_os = "linux")]
     {
@@ -144,7 +147,7 @@ impl KeyCode {
                 _ => Key::Control, // TODO: Handle this case properly.
             },
             KeyCode::Char(c) => Key::Unicode(*c),
-            KeyCode::Unknown(s) => Key::Unicode(s.chars().next().unwrap()),
+            KeyCode::Unknown(s) => Key::Unicode(s.chars().next().unwrap_or('\0')),
         }
     }
     pub fn from_str(code_str: Option<&str>) -> Option<Self> {

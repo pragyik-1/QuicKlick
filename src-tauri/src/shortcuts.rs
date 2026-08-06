@@ -61,18 +61,18 @@ impl ShortcutManager {
 
     pub fn update(app: &AppHandle, id: String, new_event: InputEvent) -> Result<(), String> {
         let state = app.state::<ShortcutManager>();
-        let old_key = {
-            let mut bindings = state.bindings.lock().unwrap();
-            bindings.insert(id.clone(), new_event.clone())
-        };
+        let old_key = state.bindings.lock().unwrap().get(&id).cloned();
 
         #[cfg(target_os = "linux")]
         if is_wayland() {
+            state.bindings.lock().unwrap().insert(id, new_event);
             wayland::update(app)?;
             return Ok(());
         }
 
-        standard::update(app, id, new_event, old_key)
+        standard::update(app, id.clone(), new_event.clone(), old_key)?;
+        state.bindings.lock().unwrap().insert(id, new_event);
+        Ok(())
     }
 }
 
@@ -202,13 +202,18 @@ mod standard {
     ) -> Result<(), String> {
         let manager = app.global_shortcut();
 
+        if old_key.as_ref() == Some(&new_key) {
+            return Ok(());
+        }
+        register(app, id, new_key)?;
+
         if let Some(old_k) = old_key {
             if let Ok(s) = Shortcut::from_str(&old_k.to_string()) {
                 let _ = manager.unregister(s);
             }
         }
 
-        register(app, id, new_key)
+        Ok(())
     }
 
     fn register(app: &AppHandle, id: String, event: InputEvent) -> Result<(), String> {

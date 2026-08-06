@@ -200,6 +200,14 @@ textarea {
     color: var(--primary-text);
 }
 
+.nav-link.disabled,
+.nav-link.disabled:hover {
+    color: var(--secondary-text);
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: default;
+}
+
 .nav-link.active {
     color: var(--primary);
     border-bottom-color: var(--primary);

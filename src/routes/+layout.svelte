@@ -11,6 +11,8 @@
     { label: 'None', value: '' },
     ...Object.keys(clickerState.settings.presets).map((p) => ({ label: p, value: p })),
   ])
+
+  let seqModeLocked = $derived(clickerState.mode === 1)
 </script>
 
 <NavBar height={45}>
@@ -43,6 +45,8 @@
       <a
         class="nav-link"
         class:active={page.url.pathname === '/'}
+        class:disabled={seqModeLocked}
+        aria-disabled={seqModeLocked}
         href="/"
         title="Home"
         style="padding: 0.4rem;"
@@ -52,6 +56,8 @@
       <a
         class="nav-link"
         class:active={page.url.pathname === '/advanced'}
+        class:disabled={seqModeLocked}
+        aria-disabled={seqModeLocked}
         href="/advanced"
         title="Advanced"
         style="padding: 0.4rem;"

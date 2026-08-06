@@ -44,7 +44,7 @@ pub fn toggle_clicker_cmd(app: AppHandle) -> bool {
     will_run
 }
 
-fn update_saved_state(app: &AppHandle) {
+pub fn update_saved_state(app: &AppHandle) {
     let state = resolve_state(app);
     let sm = app.state::<Arc<crate::settings::SettingsManager>>();
     if sm.get().persist_app_state {

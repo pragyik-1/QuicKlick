@@ -33,8 +33,11 @@ pub struct SavedState {
     pub click_limit: u64,
     pub is_limited: bool,
     pub target: ClickTarget,
+    #[serde(default)]
     pub mode: u8,
+    #[serde(default)]
     pub sequence: Vec<crate::automator::SeqTarget>,
+    #[serde(default)]
     pub repeat_sequence: bool,
 }
 

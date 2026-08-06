@@ -102,12 +102,13 @@ pub struct Automator {
 impl Automator {
     const DOUBLE_CLICK_GAP: Duration = Duration::from_millis(15);
 
-    pub fn new() -> Self {
-        Self {
-            enigo: Enigo::new(&Settings::default()).expect("Failed to initialize Enigo"),
+    pub fn new() -> Result<Self, String> {
+        let enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
+        Ok(Self {
+            enigo,
             timer: MacroTimer::start(),
             last_pos: None,
-        }
+        })
     }
 
     pub fn handle_click(&mut self, target: &ClickTarget) {

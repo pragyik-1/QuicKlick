@@ -3,7 +3,7 @@ use std::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 use crate::automator::Automator;
 use crate::scheduler::Scheduler;
@@ -15,7 +15,14 @@ const EMIT_INTERVAL: Duration = Duration::from_millis(50);
 pub fn run(app: AppHandle, state: Arc<AppState>, rx: Receiver<ClickerSig>) {
     std::thread::sleep(Duration::from_secs(1));
 
-    let mut automator = Automator::new();
+    let mut automator = match Automator::new() {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("Failed to initialize input automation: {e}");
+            let _ = app.emit("error", format!("Failed to initialize input automation: {e}"));
+            return;
+        }
+    };
     let scheduler = Scheduler::new(&rx);
     let mut last_emit = Instant::now();
     let mut sequence_index: usize = 0;
@@ -30,7 +37,8 @@ pub fn run(app: AppHandle, state: Arc<AppState>, rx: Receiver<ClickerSig>) {
                     last_emit = Instant::now();
                     sequence_index = 0;
                 }
-                _ => break,
+                Ok(ClickerSig::Stop) => {}
+                Err(_) => break,
             }
         } else {
             let mode = state.mode.load(Ordering::SeqCst);
