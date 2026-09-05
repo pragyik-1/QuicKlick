@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { toast } from 'bluenite'
+import { toast } from '@hermitk/bluenite'
 import { listen } from '@tauri-apps/api/event'
 
 export interface ClickTarget {

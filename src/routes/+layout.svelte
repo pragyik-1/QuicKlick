@@ -1,6 +1,6 @@
 <script lang="ts">
   import '../app.css'
-  import { Button, NavBar, Select, ToastManager } from 'bluenite'
+  import { Button, NavBar, Select, ToastManager } from '@hermitk/bluenite'
   import { page } from '$app/state'
   import { clickerState } from '$lib/clickerState.svelte'
   import { Settings, House, SlidersVertical, ListOrdered } from 'lucide-svelte'
@@ -15,7 +15,7 @@
   let seqModeLocked = $derived(clickerState.mode === 1)
 </script>
 
-<NavBar height={45}>
+<NavBar mobile={false} height="45px">
   <a class="nav-brand" href="/">
     <svg
       class="brand-icon"

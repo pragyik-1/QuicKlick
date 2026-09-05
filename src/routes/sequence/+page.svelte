@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Card, Button, Input, Select, Switch, Row } from 'bluenite'
+  import { Card, Button, Input, Select, Switch, Row } from '@hermitk/bluenite'
   import { clickerState, type SeqTargetPayload } from '$lib/clickerState.svelte'
   import HotkeyInput from '$lib/HotkeyInput.svelte'
   import {

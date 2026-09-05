@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Card, Button, Input, Select, Switch, Row, toast } from 'bluenite'
+  import { Card, Button, Input, Select, Switch, Row, toast } from '@hermitk/bluenite'
   import { clickerState } from '$lib/clickerState.svelte'
   import HotkeyInput from '$lib/HotkeyInput.svelte'
   import { Play, Square, Gauge, Monitor, MousePointer2, Keyboard } from 'lucide-svelte'

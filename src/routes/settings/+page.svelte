@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { Card, Input, Button, Switch, Col, Row } from 'bluenite'
+  import { Card, Input, Button, Switch, Row, toast } from '@hermitk/bluenite'
   import { clickerState } from '$lib/clickerState.svelte'
-  import { toast } from 'bluenite'
   import HotkeyInput from '$lib/HotkeyInput.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { onMount } from 'svelte'
