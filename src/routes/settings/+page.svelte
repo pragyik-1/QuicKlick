@@ -33,12 +33,14 @@
     Object.fromEntries(SHORTCUTS.map((s) => [s.id, s.defaultKey])),
   )
 
+  let isLinux = $state(false)
   let isWayland = $state(false)
   let newPresetName = $state('')
 
   onMount(async () => {
     try {
       isWayland = await invoke<boolean>('is_wayland_cmd')
+      isLinux = await invoke<boolean>('is_linux_cmd')
       await clickerState.syncSettings()
       for (const [id, event] of Object.entries(clickerState.settings.shortcuts)) {
         bindings[id] = formatDisplay(event.key, event.modifiers)
@@ -139,6 +141,7 @@
   {/if}
 </Card>
 
+{#if isLinux}
 <Card style="margin-bottom: 1.5rem;" title="Global Shortcut Backend">
   <div style="margin-bottom: 1rem; color: var(--muted-text); font-size: 0.85rem; line-height: 1.4;">
     When enabled, the app will use evdev to capture global shortcuts. Made for systems running
@@ -158,6 +161,7 @@
     }}
   />
 </Card>
+{/if}
 
 <Card style="margin-bottom: 1.5rem;" title="App State Persistence">
   <div style="margin-bottom: 1rem; color: var(--muted-text); font-size: 0.85rem; line-height: 1.4;">

@@ -182,6 +182,7 @@ pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>, rx: mpsc::Rec
             frontend_api::set_repeat_sequence_cmd,
             frontend_api::update_shortcut_cmd,
             frontend_api::is_wayland_cmd,
+            frontend_api::is_linux_cmd,
             settings::get_settings_cmd,
             settings::set_persist_app_state_cmd,
             settings::set_use_evdev_shortcuts_cmd,

@@ -170,3 +170,8 @@ pub fn update_shortcut_cmd(
 pub fn is_wayland_cmd() -> bool {
     crate::utils::is_wayland()
 }
+
+#[tauri::command]
+pub fn is_linux_cmd() -> bool {
+    crate::utils::is_linux()
+}

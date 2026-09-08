@@ -20,6 +20,17 @@ pub fn is_wayland() -> bool {
     }
 }
 
+pub fn is_linux() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        true
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum KeyCode {
     Char(char),
