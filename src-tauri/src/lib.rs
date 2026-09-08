@@ -147,7 +147,11 @@ pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>, rx: mpsc::Rec
                 }
             }
 
-            shortcuts::ShortcutManager::init(app.handle(), settings_data.shortcuts);
+            shortcuts::ShortcutManager::init(
+                app.handle(),
+                settings_data.shortcuts,
+                settings_data.use_evdev_shortcuts,
+            );
 
             let handle = app.handle().clone();
             app.listen("shortcut_triggered", move |event| {
@@ -180,6 +184,7 @@ pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>, rx: mpsc::Rec
             frontend_api::is_wayland_cmd,
             settings::get_settings_cmd,
             settings::set_persist_app_state_cmd,
+            settings::set_use_evdev_shortcuts_cmd,
             settings::save_preset_cmd,
             settings::delete_preset_cmd,
             settings::save_app_state_cmd,

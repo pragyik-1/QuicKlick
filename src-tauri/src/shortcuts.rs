@@ -17,26 +17,56 @@ pub fn get_action_description(id: &str) -> &'static str {
     }
 }
 
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum LinuxBackend {
+    Portal,
+    Evdev,
+}
+
 #[derive(Default)]
 pub struct ShortcutManager {
     pub bindings: Mutex<HashMap<String, InputEvent>>,
     #[cfg(target_os = "linux")]
+    pub backend: Mutex<Option<LinuxBackend>>,
+    #[cfg(target_os = "linux")]
     pub wayland_task: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+    #[cfg(target_os = "linux")]
+    pub kbd_manager: Mutex<Option<evdev_shortcuts::KbdShortcutManager>>,
 }
 
 impl ShortcutManager {
-    pub fn init(app: &AppHandle, initial_bindings: HashMap<String, InputEvent>) {
+    pub fn init(
+        app: &AppHandle,
+        initial_bindings: HashMap<String, InputEvent>,
+        use_evdev_shortcuts: bool,
+    ) {
         let manager = Self {
             bindings: Mutex::new(initial_bindings.clone()),
             #[cfg(target_os = "linux")]
+            backend: Mutex::new(None),
+            #[cfg(target_os = "linux")]
             wayland_task: Mutex::new(None),
+            #[cfg(target_os = "linux")]
+            kbd_manager: Mutex::new(None),
         };
         app.manage(manager);
 
         #[cfg(target_os = "linux")]
-        if is_wayland() {
-            wayland::setup(app, initial_bindings);
-            return;
+        {
+            let state = app.state::<ShortcutManager>();
+            if use_evdev_shortcuts {
+                if evdev_permissions::ensure(app) && evdev_shortcuts::try_setup(app, initial_bindings.clone()).is_ok() {
+                    *state.backend.lock().unwrap() = Some(LinuxBackend::Evdev);
+                    return;
+                }
+                eprintln!("evdev shortcuts unavailable, falling back to portal");
+            }
+            if is_wayland() {
+                *state.backend.lock().unwrap() = Some(LinuxBackend::Portal);
+                wayland::setup(app, initial_bindings);
+                return;
+            }
         }
 
         standard::setup(app, initial_bindings);
@@ -64,10 +94,18 @@ impl ShortcutManager {
         let old_key = state.bindings.lock().unwrap().get(&id).cloned();
 
         #[cfg(target_os = "linux")]
-        if is_wayland() {
-            state.bindings.lock().unwrap().insert(id, new_event);
-            wayland::update(app)?;
-            return Ok(());
+        {
+            match *state.backend.lock().unwrap() {
+                Some(LinuxBackend::Portal) => {
+                    state.bindings.lock().unwrap().insert(id, new_event);
+                    return wayland::update(app);
+                }
+                Some(LinuxBackend::Evdev) => {
+                    state.bindings.lock().unwrap().insert(id, new_event);
+                    return evdev_shortcuts::update(app);
+                }
+                None => {}
+            }
         }
 
         standard::update(app, id.clone(), new_event.clone(), old_key)?;
@@ -129,17 +167,29 @@ mod wayland {
         bindings: HashMap<String, InputEvent>,
     ) -> tauri::async_runtime::JoinHandle<()> {
         tauri::async_runtime::spawn(async move {
+            fn fallback_to_evdev(app: &AppHandle, bindings: &HashMap<String, InputEvent>) {
+                eprintln!("Wayland portal unavailable; falling back to evdev shortcuts");
+                if super::evdev_shortcuts::enable_as_fallback(app, bindings.clone()) {
+                    let _ = app.emit("error", "Wayland shortcuts unavailable; using evdev shortcuts.");
+                }
+            }
+
             tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
             let proxy = match GlobalShortcuts::new().await {
                 Ok(p) => p,
-                Err(e) => return eprintln!("Wayland shortcut proxy error: {}", e),
+                Err(e) => {
+                    eprintln!("Wayland shortcut proxy error: {}", e);
+                    fallback_to_evdev(&app, &bindings);
+                    return;
+                }
             };
 
             let session = match proxy.create_session().await {
                 Ok(s) => s,
                 Err(e) => {
                     eprintln!("Wayland shortcut session error: {}", e);
+                    fallback_to_evdev(&app, &bindings);
                     return;
                 }
             };
@@ -161,7 +211,9 @@ mod wayland {
                 )
                 .await
             {
-                return eprintln!("Failed to bind Wayland shortcuts: {}", e);
+                eprintln!("Failed to bind Wayland shortcuts: {}", e);
+                fallback_to_evdev(&app, &bindings);
+                return;
             }
 
             if let Ok(mut stream) = proxy.receive_activated().await {
@@ -175,6 +227,289 @@ mod wayland {
                 }
             }
         })
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub mod evdev_shortcuts {
+    use std::collections::HashMap;
+
+    use kbd::hotkey::{Hotkey, Modifier as KbdModifier};
+    use kbd::key::Key;
+    use kbd_global::binding_guard::BindingGuard;
+    use kbd_global::manager::HotkeyManager;
+    use tauri::{AppHandle, Emitter, Manager};
+
+    use crate::shortcuts::ShortcutManager;
+    use crate::utils::{InputEvent, KeyCode, Modifier};
+
+    pub struct KbdShortcutManager {
+        pub manager: HotkeyManager,
+        pub guards: Vec<BindingGuard>,
+    }
+    
+    pub fn try_setup(app: &AppHandle, bindings: HashMap<String, InputEvent>) -> Result<(), String> {
+        let manager = HotkeyManager::new().map_err(|e| format!("{e}"))?;
+
+        let mut guards = Vec::new();
+        for (id, event) in bindings {
+            match register(&manager, app, &id, &event) {
+                Ok(guard) => guards.push(guard),
+                Err(e) => return Err(e),
+            }
+        }
+
+        let state = app.state::<ShortcutManager>();
+        *state.kbd_manager.lock().unwrap() = Some(KbdShortcutManager { manager, guards });
+        Ok(())
+    }
+
+    /// Called when the Wayland portal is unavailable but evdev shortcuts should
+    /// still be used as a fallback. Returns `true` if evdev is now active.
+    pub fn enable_as_fallback(app: &AppHandle, bindings: HashMap<String, InputEvent>) -> bool {
+        if !super::evdev_permissions::ensure(app) {
+            return false;
+        }
+        if let Err(e) = try_setup(app, bindings) {
+            eprintln!("evdev fallback failed: {e}");
+            return false;
+        }
+        let state = app.state::<ShortcutManager>();
+        *state.backend.lock().unwrap() = Some(super::LinuxBackend::Evdev);
+        true
+    }
+
+    fn register(
+        manager: &HotkeyManager,
+        app: &AppHandle,
+        id: &str,
+        event: &InputEvent,
+    ) -> Result<BindingGuard, String> {
+        let hotkey = input_event_to_hotkey(event)?;
+        let id_clone = id.to_string();
+        let app_clone = app.clone();
+
+        manager
+            .register(hotkey, move || {
+                let _ = app_clone.emit("shortcut_triggered", id_clone.clone());
+            })
+            .map_err(|e| format!("Failed to register shortcut {id}: {e}"))
+    }
+
+    pub fn update(app: &AppHandle) -> Result<(), String> {
+        let state = app.state::<ShortcutManager>();
+        let bindings = state.bindings.lock().unwrap().clone();
+
+        let mut kbd_lock = state.kbd_manager.lock().unwrap();
+        if let Some(kbd) = kbd_lock.as_mut() {
+            kbd.guards.clear();
+            let mut fresh = Vec::new();
+            for (id, event) in bindings {
+                match register(&kbd.manager, app, &id, &event) {
+                    Ok(guard) => fresh.push(guard),
+                    Err(e) => return Err(e),
+                }
+            }
+            kbd.guards = fresh;
+        }
+        Ok(())
+    }
+
+    fn input_event_to_hotkey(event: &InputEvent) -> Result<Hotkey, String> {
+        let key = to_kbd_key(&event.key);
+        let mut hotkey = Hotkey::new(key);
+        for modifier in &event.modifiers {
+            hotkey = hotkey.modifier(to_kbd_modifier(modifier));
+        }
+        Ok(hotkey)
+    }
+
+    fn to_kbd_modifier(m: &Modifier) -> KbdModifier {
+        match m {
+            Modifier::Shift => KbdModifier::Shift,
+            Modifier::Control => KbdModifier::Ctrl,
+            Modifier::Alt => KbdModifier::Alt,
+            Modifier::Meta => KbdModifier::Super,
+        }
+    }
+
+    fn to_kbd_key(key: &KeyCode) -> Key {
+        match key {
+            KeyCode::Space => Key::SPACE,
+            KeyCode::Enter => Key::ENTER,
+            KeyCode::Tab => Key::TAB,
+            KeyCode::Backspace => Key::BACKSPACE,
+            KeyCode::Left => Key::ARROW_LEFT,
+            KeyCode::Right => Key::ARROW_RIGHT,
+            KeyCode::Up => Key::ARROW_UP,
+            KeyCode::Down => Key::ARROW_DOWN,
+            KeyCode::Home => Key::HOME,
+            KeyCode::End => Key::END,
+            KeyCode::PageUp => Key::PAGE_UP,
+            KeyCode::PageDown => Key::PAGE_DOWN,
+            KeyCode::Escape => Key::ESCAPE,
+            KeyCode::Insert => Key::INSERT,
+            KeyCode::Delete => Key::DELETE,
+            KeyCode::F(1) => Key::F1,
+            KeyCode::F(2) => Key::F2,
+            KeyCode::F(3) => Key::F3,
+            KeyCode::F(4) => Key::F4,
+            KeyCode::F(5) => Key::F5,
+            KeyCode::F(6) => Key::F6,
+            KeyCode::F(7) => Key::F7,
+            KeyCode::F(8) => Key::F8,
+            KeyCode::F(9) => Key::F9,
+            KeyCode::F(10) => Key::F10,
+            KeyCode::F(11) => Key::F11,
+            KeyCode::F(12) => Key::F12,
+            KeyCode::F(_) => Key::UNIDENTIFIED,
+            KeyCode::Char(c) => char_to_key(*c).unwrap_or(Key::UNIDENTIFIED),
+            KeyCode::Unknown(_) => Key::UNIDENTIFIED,
+        }
+    }
+
+    fn char_to_key(c: char) -> Option<Key> {
+        match c {
+            'a' | 'A' => Some(Key::A),
+            'b' | 'B' => Some(Key::B),
+            'c' | 'C' => Some(Key::C),
+            'd' | 'D' => Some(Key::D),
+            'e' | 'E' => Some(Key::E),
+            'f' | 'F' => Some(Key::F),
+            'g' | 'G' => Some(Key::G),
+            'h' | 'H' => Some(Key::H),
+            'i' | 'I' => Some(Key::I),
+            'j' | 'J' => Some(Key::J),
+            'k' | 'K' => Some(Key::K),
+            'l' | 'L' => Some(Key::L),
+            'm' | 'M' => Some(Key::M),
+            'n' | 'N' => Some(Key::N),
+            'o' | 'O' => Some(Key::O),
+            'p' | 'P' => Some(Key::P),
+            'q' | 'Q' => Some(Key::Q),
+            'r' | 'R' => Some(Key::R),
+            's' | 'S' => Some(Key::S),
+            't' | 'T' => Some(Key::T),
+            'u' | 'U' => Some(Key::U),
+            'v' | 'V' => Some(Key::V),
+            'w' | 'W' => Some(Key::W),
+            'x' | 'X' => Some(Key::X),
+            'y' | 'Y' => Some(Key::Y),
+            'z' | 'Z' => Some(Key::Z),
+            '0' => Some(Key::DIGIT0),
+            '1' => Some(Key::DIGIT1),
+            '2' => Some(Key::DIGIT2),
+            '3' => Some(Key::DIGIT3),
+            '4' => Some(Key::DIGIT4),
+            '5' => Some(Key::DIGIT5),
+            '6' => Some(Key::DIGIT6),
+            '7' => Some(Key::DIGIT7),
+            '8' => Some(Key::DIGIT8),
+            '9' => Some(Key::DIGIT9),
+            ' ' => Some(Key::SPACE),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub mod evdev_permissions {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+    use std::process::Command;
+
+    use tauri::{AppHandle, Emitter};
+
+    const UDEV_RULE: &str = "/etc/udev/rules.d/99-quicklick-input.rules";
+
+    /// Whether the running user can already read input event devices.
+    fn devices_readable() -> bool {
+        fs::read_dir("/dev/input")
+            .map(|entries| {
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    if !name.starts_with("event") {
+                        continue;
+                    }
+                    if let Ok(f) = fs::File::open(entry.path()) {
+                        drop(f);
+                        return true;
+                    }
+                }
+                false
+            })
+            .unwrap_or(false)
+    }
+
+    /// A udev rule that grants (setfacl) the logged-in user read access to
+    /// existing and newly created input devices, plus immediate application.
+    fn setup_script(username: &str) -> String {
+        format!(
+            "#!/bin/bash\n\
+             set -e\n\
+             RULE='/etc/udev/rules.d/99-quicklick-input.rules'\n\
+             cat > \"$RULE\" <<'EOF'\n\
+             KERNEL==\"event*\", SUBSYSTEM==\"input\", RUN+=\"/usr/bin/setfacl -m u:{username}:r /dev/input/event*\"\n\
+             EOF\n\
+             chmod 644 \"$RULE\"\n\
+             udevadm control --reload-rules\n\
+             udevadm trigger --subsystem-match=input\n\
+             setfacl -m u:{username}:r /dev/input/event* 2>/dev/null || true\n",
+            username = username
+        )
+    }
+
+    /// Ask the user (via pkexec) to install permissions so we can read
+    /// `/dev/input/event*`. Returns true if access is available afterward.
+    pub fn ensure(app: &AppHandle) -> bool {
+        if devices_readable() {
+            return true;
+        }
+
+        let username = match std::env::var("USER") {
+            Ok(u) => u,
+            Err(_) => return false,
+        };
+
+        let script_path = std::env::temp_dir().join("quicklick-setup-evdev.sh");
+        if fs::write(&script_path, setup_script(&username)).is_err() {
+            return false;
+        }
+        let _ = fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755));
+
+        let result = Command::new("pkexec")
+            .arg("/bin/bash")
+            .arg(&script_path)
+            .output();
+
+        let _ = fs::remove_file(&script_path);
+
+        match result {
+            Ok(output) if output.status.success() => {
+                let ok = devices_readable();
+                if !ok {
+                    let _ = app.emit("error", "evdev permission setup ran but /dev/input is still not readable. Try logging out and back in.");
+                }
+                ok
+            }
+            Ok(_) => {
+                let _ = app.emit("error", "evdev permission setup was cancelled or failed.");
+                false
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    "error",
+                    format!("pkexec not available for evdev permission setup: {e}"),
+                );
+                false
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    fn _udev_rule_exists() -> bool {
+        Path::new(UDEV_RULE).exists()
     }
 }
 

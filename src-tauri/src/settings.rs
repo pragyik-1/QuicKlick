@@ -14,6 +14,12 @@ pub struct AppSettings {
     pub saved_state: Option<SavedState>,
     pub presets: HashMap<String, SavedState>,
     pub shortcuts: HashMap<String, InputEvent>,
+    #[serde(default = "default_use_evdev_shortcuts")]
+    pub use_evdev_shortcuts: bool,
+}
+
+fn default_use_evdev_shortcuts() -> bool {
+    true
 }
 
 impl Default for AppSettings {
@@ -23,6 +29,7 @@ impl Default for AppSettings {
             saved_state: None,
             presets: HashMap::new(),
             shortcuts: shortcuts::ShortcutManager::default(),
+            use_evdev_shortcuts: true,
         }
     }
 }
@@ -108,6 +115,12 @@ pub fn get_settings_cmd(app: AppHandle) -> AppSettings {
 pub fn set_persist_app_state_cmd(app: AppHandle, persist: bool) {
     let sm = app.state::<Arc<SettingsManager>>();
     sm.update(|s| s.persist_app_state = persist);
+}
+
+#[tauri::command]
+pub fn set_use_evdev_shortcuts_cmd(app: AppHandle, enabled: bool) {
+    let sm = app.state::<Arc<SettingsManager>>();
+    sm.update(|s| s.use_evdev_shortcuts = enabled);
 }
 
 #[tauri::command]

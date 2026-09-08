@@ -40,6 +40,8 @@ ashpd = {
 }
 enigo = { version = "0.2.1", features = ["wayland", "x11rb"] }
 futures-util = "0.3"
+kbd = "0.2"
+kbd-global = "0.2"
 tokio = { version = "1", features = ["time"] }
 
 [profile.release]

@@ -102,7 +102,7 @@
 </script>
 
 <Card style="margin-bottom: 1.5rem;" title="Shortcuts">
-  {#if isWayland}
+  {#if isWayland && !clickerState.settings.use_evdev_shortcuts}
     <div style="padding: 1rem; text-align: center; color: var(--muted-text);">
       <TriangleAlert
         size={48}
@@ -137,6 +137,26 @@
       {/each}
     </div>
   {/if}
+</Card>
+
+<Card style="margin-bottom: 1.5rem;" title="Global Shortcut Backend">
+  <div style="margin-bottom: 1rem; color: var(--muted-text); font-size: 0.85rem; line-height: 1.4;">
+    When enabled, the app will use evdev to capture global shortcuts. Made for systems running
+    wayland without proper XDG support such as WMs. If it fails, it reverts back to the default
+    OS-level shortcut handling.
+  </div>
+  <Switch
+    label="Use native shortcuts"
+    checked={clickerState.settings.use_evdev_shortcuts}
+    onchange={(e) => {
+      clickerState.setUseEvdevShortcuts(e.currentTarget.checked)
+      toast.show({
+        message: 'Shortcut backend updated. Restart the app for changes to take effect.',
+        variant: 'info',
+        duration: 4000,
+      })
+    }}
+  />
 </Card>
 
 <Card style="margin-bottom: 1.5rem;" title="App State Persistence">

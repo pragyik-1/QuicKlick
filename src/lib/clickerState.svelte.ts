@@ -64,6 +64,7 @@ export interface AppSettings {
   saved_state: SavedState | null
   presets: Record<string, SavedState>
   shortcuts: Record<string, any>
+  use_evdev_shortcuts: boolean
 }
 
 class ClickerState {
@@ -74,6 +75,7 @@ class ClickerState {
     saved_state: null,
     presets: {},
     shortcuts: {},
+    use_evdev_shortcuts: true,
   })
 
   private _cps = $state('10')
@@ -323,6 +325,11 @@ class ClickerState {
   async setPersistAppState(val: boolean) {
     this.settings.persist_app_state = val
     await invoke('set_persist_app_state_cmd', { persist: val })
+  }
+
+  async setUseEvdevShortcuts(val: boolean) {
+    this.settings.use_evdev_shortcuts = val
+    await invoke('set_use_evdev_shortcuts_cmd', { enabled: val })
   }
 
   async savePreset(name: string) {
