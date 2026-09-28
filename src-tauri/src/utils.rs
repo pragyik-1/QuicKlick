@@ -62,7 +62,7 @@ pub enum Modifier {
 }
 
 impl Modifier {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "ctrl" | "control" => Some(Modifier::Control),
             "shift" => Some(Modifier::Shift),
@@ -71,7 +71,7 @@ impl Modifier {
             _ => None,
         }
     }
-    pub fn to_string(&self) -> String {
+    pub fn str(&self) -> String {
         match self {
             Modifier::Shift => "Shift".to_string(),
             Modifier::Control => "Ctrl".to_string(),
@@ -91,18 +91,18 @@ impl InputEvent {
     pub fn new(key: KeyCode, modifiers: Vec<Modifier>) -> Self {
         Self { key, modifiers }
     }
-    pub fn to_string(&self) -> String {
+    pub fn str(&self) -> String {
         let mut parts = Vec::new();
         for modifier in &self.modifiers {
-            parts.push(modifier.to_string());
+            parts.push(modifier.str());
         }
-        parts.push(self.key.to_string());
+        parts.push(self.key.str());
         parts.join("+")
     }
 }
 
 impl KeyCode {
-    pub fn to_string(&self) -> String {
+    pub fn str(&self) -> String {
         match self {
             KeyCode::Char(c) => c.to_string(),
             KeyCode::Space => "space".to_string(),
@@ -161,11 +161,8 @@ impl KeyCode {
             KeyCode::Unknown(s) => Key::Unicode(s.chars().next().unwrap_or('\0')),
         }
     }
-    pub fn from_str(code_str: Option<&str>) -> Option<Self> {
-        if code_str.is_none() {
-            return None;
-        }
-        let code_str = code_str.unwrap();
+    pub fn parse_str(code_str: Option<&str>) -> Option<Self> {
+        let code_str = code_str?;
         let normalized = code_str.to_lowercase();
 
         let key = match normalized.as_str() {
@@ -200,7 +197,7 @@ impl<'de> Deserialize<'de> for KeyCode {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        KeyCode::from_str(Some(&s))
+        KeyCode::parse_str(Some(&s))
             .ok_or_else(|| serde::de::Error::custom(format!("invalid key code: {}", s)))
     }
 }
@@ -210,7 +207,7 @@ impl serde::Serialize for KeyCode {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        serializer.serialize_str(&self.str())
     }
 }
 

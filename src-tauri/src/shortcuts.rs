@@ -47,7 +47,6 @@ pub enum LinuxBackend {
     Evdev,
 }
 
-#[derive(Default)]
 pub struct ShortcutManager {
     pub bindings: Mutex<HashMap<String, InputEvent>>,
     #[cfg(target_os = "linux")]
@@ -97,7 +96,7 @@ impl ShortcutManager {
         standard::setup(app, initial_bindings);
     }
 
-    pub fn default() -> HashMap<String, InputEvent> {
+    pub fn default_shortcuts() -> HashMap<String, InputEvent> {
         HashMap::from([
             (
                 ACTION_TOGGLE.to_string(),
@@ -182,7 +181,7 @@ mod wayland {
             parts.push("Shift");
         }
 
-        let key_name = event.key.to_string();
+        let key_name = event.key.str();
         parts.push(&key_name);
         parts.join("+")
     }
@@ -299,10 +298,8 @@ pub mod evdev_shortcuts {
 
         let mut guards = Vec::new();
         for (id, event) in bindings {
-            match register(&manager, app, &id, &event) {
-                Ok(guard) => guards.push(guard),
-                Err(e) => return Err(e),
-            }
+            let guard = register(&manager, app, &id, &event)?;
+            guards.push(guard)
         }
 
         let state = app.state::<ShortcutManager>();
@@ -351,10 +348,8 @@ pub mod evdev_shortcuts {
             kbd.guards.clear();
             let mut fresh = Vec::new();
             for (id, event) in bindings {
-                match register(&kbd.manager, app, &id, &event) {
-                    Ok(guard) => fresh.push(guard),
-                    Err(e) => return Err(e),
-                }
+                let guard = register(&kbd.manager, app, &id, &event)?;
+                fresh.push(guard)
             }
             kbd.guards = fresh;
         }
@@ -589,7 +584,7 @@ mod standard {
         register(app, id, new_key)?;
 
         if let Some(old_k) = old_key {
-            if let Ok(s) = Shortcut::from_str(&old_k.to_string()) {
+            if let Ok(s) = Shortcut::from_str(&old_k.str()) {
                 let _ = manager.unregister(s);
             }
         }
@@ -604,7 +599,7 @@ mod standard {
         let Some(old_key) = old_key else {
             return Ok(());
         };
-        let shortcut = Shortcut::from_str(&old_key.to_string())
+        let shortcut = Shortcut::from_str(&old_key.str())
             .map_err(|e| format!("Invalid key format to unregister: {}", e))?;
         app.global_shortcut()
             .unregister(shortcut)
@@ -613,7 +608,7 @@ mod standard {
 
     fn register(app: &AppHandle, id: String, event: InputEvent) -> Result<(), String> {
         let manager = app.global_shortcut();
-        let shortcut = Shortcut::from_str(&event.to_string())
+        let shortcut = Shortcut::from_str(&event.str())
             .map_err(|e| format!("Invalid key format for {}: {}", id, e))?;
 
         let id_clone = id.clone();
@@ -665,7 +660,7 @@ mod tests {
     /// `settings.json` without preset bindings.
     #[test]
     fn defaults_leave_preset_slots_unbound() {
-        let defaults = ShortcutManager::default();
+        let defaults = ShortcutManager::default_shortcuts();
         for id in [
             ACTION_PRESET_1,
             ACTION_PRESET_2,

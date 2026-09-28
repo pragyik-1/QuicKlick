@@ -28,7 +28,7 @@ impl Default for AppSettings {
             persist_app_state: true,
             saved_state: None,
             presets: HashMap::new(),
-            shortcuts: shortcuts::ShortcutManager::default(),
+            shortcuts: shortcuts::ShortcutManager::default_shortcuts(),
             use_evdev_shortcuts: false,
             preset_slots: HashMap::new(),
         }
@@ -97,7 +97,7 @@ impl SettingsManager {
             let data = fs::read_to_string(&path).unwrap_or_default();
             let mut s: AppSettings =
                 serde_json::from_str(&data).unwrap_or_else(|_| AppSettings::default());
-            let defaults = shortcuts::ShortcutManager::default();
+            let defaults = shortcuts::ShortcutManager::default_shortcuts();
             for (k, v) in defaults {
                 s.shortcuts.entry(k).or_insert(v);
             }

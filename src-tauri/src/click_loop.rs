@@ -19,7 +19,10 @@ pub fn run(app: AppHandle, state: Arc<AppState>, rx: Receiver<ClickerSig>) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("Failed to initialize input automation: {e}");
-            let _ = app.emit("error", format!("Failed to initialize input automation: {e}"));
+            let _ = app.emit(
+                "error",
+                format!("Failed to initialize input automation: {e}"),
+            );
             return;
         }
     };
@@ -89,7 +92,7 @@ pub fn run(app: AppHandle, state: Arc<AppState>, rx: Receiver<ClickerSig>) {
                 sequence_index += 1;
 
                 if state.is_limited.load(Ordering::SeqCst) {
-                    if sequence_index % sequence.len() == 0 {
+                    if sequence_index.is_multiple_of(sequence.len()) {
                         let count = state.num_clicks.fetch_add(1, Ordering::SeqCst) + 1;
                         if count >= state.click_limit.load(Ordering::SeqCst) {
                             state.stop_and_emit(&app);
@@ -105,7 +108,7 @@ pub fn run(app: AppHandle, state: Arc<AppState>, rx: Receiver<ClickerSig>) {
                 }
 
                 if !state.repeat_sequence.load(Ordering::SeqCst)
-                    && sequence_index % sequence.len() == 0
+                    && sequence_index.is_multiple_of(sequence.len())
                 {
                     state.stop_and_emit(&app);
                     last_emit = Instant::now();

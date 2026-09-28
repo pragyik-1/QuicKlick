@@ -152,9 +152,9 @@ pub fn update_shortcut_cmd(
 ) -> Result<(), String> {
     let modifiers = modifiers
         .iter()
-        .filter_map(|s| Modifier::from_str(s))
+        .filter_map(|s| Modifier::parse_str(s))
         .collect();
-    let key_code = KeyCode::from_str(Some(&new_key)).ok_or("Invalid key code")?;
+    let key_code = KeyCode::parse_str(Some(&new_key)).ok_or("Invalid key code")?;
     let event = InputEvent::new(key_code, modifiers);
 
     ShortcutManager::update(&app, id.clone(), event.clone())?;

@@ -18,11 +18,11 @@ pub struct ClickTarget {
 impl ClickTarget {
     pub fn from_payload(p: &ClickTargetPayload) -> Option<Self> {
         Some(Self {
-            device: Device::from_str(&p.device)?,
-            button: MouseButton::from_str(p.button.as_deref()),
-            key_code: KeyCode::from_str(p.key_code.as_deref()),
+            device: Device::parse_str(&p.device)?,
+            button: MouseButton::parse_str(p.button.as_deref()),
+            key_code: KeyCode::parse_str(p.key_code.as_deref()),
             mouse_position: p.mouse_position,
-            click_type: ClickType::from_str(&p.click_type)?,
+            click_type: ClickType::parse_str(&p.click_type)?,
             randomize_amount: p.randomize_amount,
         })
     }
@@ -41,7 +41,7 @@ pub enum Device {
 }
 
 impl Device {
-    fn from_str(s: &str) -> Option<Self> {
+    fn parse_str(s: &str) -> Option<Self> {
         match s {
             "Mouse" => Some(Self::Mouse),
             "Keyboard" => Some(Self::Keyboard),
@@ -66,7 +66,7 @@ impl MouseButton {
         }
     }
 
-    pub fn from_str(s: Option<&str>) -> Option<Self> {
+    pub fn parse_str(s: Option<&str>) -> Option<Self> {
         match s? {
             "Left" => Some(Self::Left),
             "Right" => Some(Self::Right),
@@ -84,7 +84,7 @@ pub enum ClickType {
 }
 
 impl ClickType {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_str(s: &str) -> Option<Self> {
         match s {
             "Single" => Some(Self::Single),
             "Double" => Some(Self::Double),
