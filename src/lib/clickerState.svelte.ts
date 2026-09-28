@@ -59,23 +59,40 @@ export interface SavedState {
   sequence?: SeqTargetPayload[]
 }
 
+export interface ShortcutEvent {
+  key: string
+  modifiers: string[]
+}
+
 export interface AppSettings {
   persist_app_state: boolean
   saved_state: SavedState | null
   presets: Record<string, SavedState>
-  shortcuts: Record<string, any>
+  shortcuts: Record<string, ShortcutEvent>
   use_evdev_shortcuts: boolean
+  /** Preset name assigned to each preset shortcut slot, keyed by slot id. Optional
+   * because a settings.json written before preset slots existed has no such key. */
+  preset_slots?: Record<string, string>
+}
+
+/** Settings as the app holds them: `preset_slots` is always present, because a
+ * settings.json from before preset slots existed omits the key entirely. */
+type ResolvedAppSettings = AppSettings & { preset_slots: Record<string, string> }
+
+function withPresetSlots(raw: AppSettings): ResolvedAppSettings {
+  return { ...raw, preset_slots: raw.preset_slots ?? {} }
 }
 
 class ClickerState {
   isRunning = $state(false)
   isLoaded = $state(false)
-  settings = $state<AppSettings>({
+  settings = $state<ResolvedAppSettings>({
     persist_app_state: true,
     saved_state: null,
     presets: {},
     shortcuts: {},
     use_evdev_shortcuts: true,
+    preset_slots: {},
   })
 
   private _cps = $state('10')
@@ -255,13 +272,14 @@ class ClickerState {
 
   private async init() {
     try {
-      this.settings = await invoke<AppSettings>('get_settings_cmd')
+      this.settings = withPresetSlots(await invoke<AppSettings>('get_settings_cmd'))
 
       const state = await invoke<BackendAppState>('get_app_state_cmd')
       this.updateFromBackend(state)
       this.isLoaded = true
 
       await listen<BackendAppState>('state_change', (e) => this.updateFromBackend(e.payload))
+      await listen<string>('preset_triggered', (e) => this.loadPreset(e.payload))
       await listen<unknown>('error', (e) => {
         if (typeof e.payload === 'string') {
           toast.show({ message: e.payload, variant: 'danger' })
@@ -318,8 +336,32 @@ class ClickerState {
     }
   }
 
+  /** Leaves an action with no binding. The backend drops the entry entirely, so
+   * `settings.shortcuts[id]` is undefined afterwards and reads as "None". */
+  async clearShortcut(id: string) {
+    try {
+      await invoke('clear_shortcut_cmd', { id })
+      await this.syncSettings()
+    } catch (err) {
+      toast.show({ message: `Failed to clear shortcut: ${err}`, variant: 'danger' })
+      throw err
+    }
+  }
+
+  /** Points a preset shortcut slot at a saved preset, or clears the slot when
+   * `name` is empty. */
+  async setPresetSlot(id: string, name: string) {
+    try {
+      await invoke('set_preset_slot_cmd', { slot: id, name })
+      await this.syncSettings()
+    } catch (err) {
+      toast.show({ message: `Failed to assign preset: ${err}`, variant: 'danger' })
+      throw err
+    }
+  }
+
   async syncSettings() {
-    this.settings = await invoke<AppSettings>('get_settings_cmd')
+    this.settings = withPresetSlots(await invoke<AppSettings>('get_settings_cmd'))
   }
 
   async setPersistAppState(val: boolean) {

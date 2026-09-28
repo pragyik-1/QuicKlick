@@ -40,3 +40,29 @@
     width: 160px;
     flex-shrink: 0;
 }
+
+.preset-shortcuts {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+}
+
+.preset-slot-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.preset-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.preset-picker-empty {
+    margin: 0;
+    color: var(--muted-text);
+    font-size: 0.85rem;
+    line-height: 1.4;
+}

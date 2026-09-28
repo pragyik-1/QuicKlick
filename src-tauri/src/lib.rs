@@ -1,7 +1,7 @@
 use crate::automator::ClickTarget;
 use crate::frontend_api::AppStateDto;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use tauri::{AppHandle, Emitter, Listener, Manager};
 
 pub mod automator;
@@ -92,7 +92,20 @@ pub fn handle_action(id: &str, app: &AppHandle) {
         shortcuts::ACTION_TOGGLE => toggle_clicker(app),
         shortcuts::ACTION_START => set_active(true, app),
         shortcuts::ACTION_STOP => set_active(false, app),
-        _ => println!("Unknown action triggered: {}", id),
+        _ if shortcuts::is_preset_action(id) => emit_preset_action(id, app),
+        _ => eprintln!("Unknown action triggered: {}", id),
+    }
+}
+
+/// Hands a preset slot press to the frontend
+fn emit_preset_action(id: &str, app: &AppHandle) {
+    let sm = app.state::<Arc<settings::SettingsManager>>();
+    let Some(name) = sm.get().preset_slots.get(id).cloned() else {
+        return;
+    };
+
+    if let Err(e) = app.emit("preset_triggered", &name) {
+        eprintln!("Failed to deliver preset {name} for slot {id}: {e}");
     }
 }
 
@@ -143,7 +156,9 @@ pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>, rx: mpsc::Rec
                     *app_state.target.lock().unwrap() = saved.target;
                     app_state.mode.store(saved.mode, Ordering::SeqCst);
                     *app_state.sequence.lock().unwrap() = saved.sequence;
-                    app_state.repeat_sequence.store(saved.repeat_sequence, Ordering::SeqCst);
+                    app_state
+                        .repeat_sequence
+                        .store(saved.repeat_sequence, Ordering::SeqCst);
                 }
             }
 
@@ -181,6 +196,7 @@ pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>, rx: mpsc::Rec
             frontend_api::set_sequence_cmd,
             frontend_api::set_repeat_sequence_cmd,
             frontend_api::update_shortcut_cmd,
+            frontend_api::clear_shortcut_cmd,
             frontend_api::is_wayland_cmd,
             frontend_api::is_linux_cmd,
             settings::get_settings_cmd,
@@ -188,6 +204,7 @@ pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>, rx: mpsc::Rec
             settings::set_use_evdev_shortcuts_cmd,
             settings::save_preset_cmd,
             settings::delete_preset_cmd,
+            settings::set_preset_slot_cmd,
             settings::save_app_state_cmd,
         ]);
 

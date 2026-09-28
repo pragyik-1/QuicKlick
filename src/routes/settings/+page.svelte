@@ -1,10 +1,18 @@
 <script lang="ts">
-  import { Card, Input, Button, Switch, Row, toast } from '@hermitk/bluenite'
+  import { Card, Input, Button, Switch, Row, Modal, toast } from '@hermitk/bluenite'
   import { clickerState } from '$lib/clickerState.svelte'
   import HotkeyInput from '$lib/HotkeyInput.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { onMount } from 'svelte'
-  import { TriangleAlert, Save, FolderOpen, Trash2 } from 'lucide-svelte'
+  import {
+    TriangleAlert,
+    Save,
+    FolderOpen,
+    Trash2,
+    Layers,
+    ChevronDown,
+    ChevronUp,
+  } from 'lucide-svelte'
 
   import './page.css'
 
@@ -29,13 +37,26 @@
     },
   ]
 
+  /** Preset slots carry no default binding, so `defaultKey` stays empty and the
+   * row reads as unbound until the user binds a key. The row's description comes
+   * from the assigned preset instead. Must match `shortcuts::PRESET_ACTIONS`. */
+  const PRESET_SLOTS = [1, 2, 3, 4, 5].map((slot) => ({
+    id: `preset-${slot}`,
+    name: `Preset ${slot}`,
+    defaultKey: '',
+  }))
+
+  const UNBOUND_PLACEHOLDER = 'Not set'
+
   let bindings = $state<Record<string, string>>(
-    Object.fromEntries(SHORTCUTS.map((s) => [s.id, s.defaultKey])),
+    Object.fromEntries([...SHORTCUTS, ...PRESET_SLOTS].map((s) => [s.id, s.defaultKey])),
   )
 
   let isLinux = $state(false)
   let isWayland = $state(false)
   let newPresetName = $state('')
+  let showPresetShortcuts = $state(false)
+  let slotForModal = $state<string | null>(null)
 
   onMount(async () => {
     try {
@@ -49,6 +70,8 @@
       console.error('Failed to check wayland status', err)
     }
   })
+
+  let presetNames = $derived(Object.keys(clickerState.settings.presets).sort())
 
   async function handleSavePreset() {
     if (!newPresetName.trim()) return
@@ -101,6 +124,42 @@
       })
     }
   }
+
+  async function onClear(id: string) {
+    try {
+      await clickerState.clearShortcut(id)
+      bindings[id] = ''
+      toast.show({ message: 'Shortcut cleared', variant: 'info', duration: 2000 })
+    } catch {
+      // clickerState.clearShortcut already surfaced the failure.
+    }
+  }
+
+  async function onAssignSlot(id: string, name: string) {
+    try {
+      await clickerState.setPresetSlot(id, name)
+      toast.show({
+        message: name ? `Preset ${name} assigned` : 'Preset slot cleared',
+        variant: 'success',
+        duration: 2000,
+      })
+    } catch {
+      // clickerState.setPresetSlot already surfaced the failure.
+    }
+  }
+
+  function closeSlotModal() {
+    slotForModal = null
+  }
+
+  function slotHasPreset(slot: string, name: string): boolean {
+    return (clickerState.settings.preset_slots[slot] ?? '') === name
+  }
+
+  async function assignSlot(slot: string, name: string) {
+    closeSlotModal()
+    await onAssignSlot(slot, name)
+  }
 </script>
 
 <Card style="margin-bottom: 1.5rem;" title="Shortcuts">
@@ -132,14 +191,91 @@
           <div class="shortcut-input">
             <HotkeyInput
               value={bindings[shortcut.id]}
+              placeholder={UNBOUND_PLACEHOLDER}
               onCapture={(e) => onCapture(shortcut.id, e)}
+              onClear={() => onClear(shortcut.id)}
             />
           </div>
         </div>
       {/each}
     </div>
+
+    <div class="preset-shortcuts">
+      <Button variant="ghost" onclick={() => (showPresetShortcuts = !showPresetShortcuts)}>
+        {#if showPresetShortcuts}
+          <ChevronUp size={16} style="margin-right: 0.4rem; display: inline-block;" />
+        {:else}
+          <ChevronDown size={16} style="margin-right: 0.4rem; display: inline-block;" />
+        {/if}
+        {showPresetShortcuts ? 'Hide' : 'Show'} Preset Shortcuts
+      </Button>
+
+      {#if showPresetShortcuts}
+        <div class="shortcut-list" style="margin-top: 0.75rem;">
+          {#each PRESET_SLOTS as slot}
+            <div class="shortcut-row">
+              <div class="shortcut-info">
+                <span class="shortcut-name">{slot.name}</span>
+                <span class="shortcut-desc">
+                  {clickerState.settings.preset_slots[slot.id] ?? 'No preset assigned'}
+                </span>
+              </div>
+              <div class="preset-slot-controls">
+                <div class="shortcut-input">
+                  <HotkeyInput
+                    value={bindings[slot.id]}
+                    placeholder={UNBOUND_PLACEHOLDER}
+                    onCapture={(e) => onCapture(slot.id, e)}
+                    onClear={() => onClear(slot.id)}
+                  />
+                </div>
+                <div class="shortcut-input">
+                  <Button
+                    variant="outline"
+                    title="Choose the preset for this slot"
+                    aria-label={`Choose the preset for ${slot.name}`}
+                    onclick={() => (slotForModal = slot.id)}
+                  >
+                    <Layers size={16} style="margin-right: 0.4rem; display: inline-block;" />
+                    Preset
+                  </Button>
+                </div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
   {/if}
 </Card>
+
+<Modal open={slotForModal !== null} onClose={closeSlotModal} title="Select a Preset" size="sm">
+  {#if slotForModal}
+    {@const slot = slotForModal}
+    {#if presetNames.length === 0}
+      <p class="preset-picker-empty">
+        No presets saved yet. Save a preset below to assign one to this slot.
+      </p>
+    {:else}
+      <div class="preset-picker">
+        {#each presetNames as name (name)}
+          <Button
+            variant={slotHasPreset(slot, name) ? 'fill' : 'outline'}
+            onclick={() => assignSlot(slot, name)}
+          >
+            {name}
+          </Button>
+        {/each}
+        <Button
+          variant={slotHasPreset(slot, '') ? 'fill' : 'outline'}
+          onclick={() => assignSlot(slot, '')}
+        >
+          None
+        </Button>
+      </div>
+    {/if}
+  {/if}
+</Modal>
 
 {#if isLinux}
 <Card style="margin-bottom: 1.5rem;" title="Global Shortcut Backend">

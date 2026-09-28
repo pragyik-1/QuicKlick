@@ -7,12 +7,35 @@ use crate::utils::{is_wayland, InputEvent, KeyCode, Modifier};
 pub const ACTION_TOGGLE: &str = "toggle-clicker";
 pub const ACTION_START: &str = "start-clicker";
 pub const ACTION_STOP: &str = "stop-clicker";
+pub const ACTION_PRESET_1: &str = "preset-1";
+pub const ACTION_PRESET_2: &str = "preset-2";
+pub const ACTION_PRESET_3: &str = "preset-3";
+pub const ACTION_PRESET_4: &str = "preset-4";
+pub const ACTION_PRESET_5: &str = "preset-5";
+
+/// The preset slot action ids in slot order, so a slot number indexes this directly.
+pub const PRESET_ACTIONS: [&str; 5] = [
+    ACTION_PRESET_1,
+    ACTION_PRESET_2,
+    ACTION_PRESET_3,
+    ACTION_PRESET_4,
+    ACTION_PRESET_5,
+];
+
+pub fn is_preset_action(id: &str) -> bool {
+    PRESET_ACTIONS.contains(&id)
+}
 
 pub fn get_action_description(id: &str) -> &'static str {
     match id {
         ACTION_TOGGLE => "Toggle Clicker",
         ACTION_START => "Start Clicker",
         ACTION_STOP => "Stop Clicker",
+        ACTION_PRESET_1 => "Preset 1",
+        ACTION_PRESET_2 => "Preset 2",
+        ACTION_PRESET_3 => "Preset 3",
+        ACTION_PRESET_4 => "Preset 4",
+        ACTION_PRESET_5 => "Preset 5",
         _ => "AutoClicker Action",
     }
 }
@@ -56,7 +79,9 @@ impl ShortcutManager {
         {
             let state = app.state::<ShortcutManager>();
             if use_evdev_shortcuts {
-                if evdev_permissions::ensure(app) && evdev_shortcuts::try_setup(app, initial_bindings.clone()).is_ok() {
+                if evdev_permissions::ensure(app)
+                    && evdev_shortcuts::try_setup(app, initial_bindings.clone()).is_ok()
+                {
                     *state.backend.lock().unwrap() = Some(LinuxBackend::Evdev);
                     return;
                 }
@@ -111,6 +136,24 @@ impl ShortcutManager {
         standard::update(app, id.clone(), new_event.clone(), old_key)?;
         state.bindings.lock().unwrap().insert(id, new_event);
         Ok(())
+    }
+
+    /// Drops a binding entirely. An action with no entry in `bindings` is unbound,
+    /// which is how the preset slots start out and how a cleared shortcut is stored.
+    pub fn unbind(app: &AppHandle, id: &str) -> Result<(), String> {
+        let state = app.state::<ShortcutManager>();
+        let old_key = state.bindings.lock().unwrap().remove(id);
+
+        #[cfg(target_os = "linux")]
+        {
+            match *state.backend.lock().unwrap() {
+                Some(LinuxBackend::Portal) => return wayland::update(app),
+                Some(LinuxBackend::Evdev) => return evdev_shortcuts::update(app),
+                None => {}
+            }
+        }
+
+        standard::unbind(app, old_key)
     }
 }
 
@@ -170,7 +213,10 @@ mod wayland {
             fn fallback_to_evdev(app: &AppHandle, bindings: &HashMap<String, InputEvent>) {
                 eprintln!("Wayland portal unavailable; falling back to evdev shortcuts");
                 if super::evdev_shortcuts::enable_as_fallback(app, bindings.clone()) {
-                    let _ = app.emit("error", "Wayland shortcuts unavailable; using evdev shortcuts.");
+                    let _ = app.emit(
+                        "error",
+                        "Wayland shortcuts unavailable; using evdev shortcuts.",
+                    );
                 }
             }
 
@@ -247,7 +293,7 @@ pub mod evdev_shortcuts {
         pub manager: HotkeyManager,
         pub guards: Vec<BindingGuard>,
     }
-    
+
     pub fn try_setup(app: &AppHandle, bindings: HashMap<String, InputEvent>) -> Result<(), String> {
         let manager = HotkeyManager::new().map_err(|e| format!("{e}"))?;
 
@@ -551,6 +597,20 @@ mod standard {
         Ok(())
     }
 
+    /// Releases the accelerator an action was holding, if any. Without the key the
+    /// action cannot be unregistered, so a never-bound or already-cleared action
+    /// is a no-op success.
+    pub fn unbind(app: &AppHandle, old_key: Option<InputEvent>) -> Result<(), String> {
+        let Some(old_key) = old_key else {
+            return Ok(());
+        };
+        let shortcut = Shortcut::from_str(&old_key.to_string())
+            .map_err(|e| format!("Invalid key format to unregister: {}", e))?;
+        app.global_shortcut()
+            .unregister(shortcut)
+            .map_err(|e| format!("Failed to unregister shortcut: {}", e))
+    }
+
     fn register(app: &AppHandle, id: String, event: InputEvent) -> Result<(), String> {
         let manager = app.global_shortcut();
         let shortcut = Shortcut::from_str(&event.to_string())
@@ -566,5 +626,63 @@ mod standard {
             .map_err(|e| format!("Failed to register shortcut {}: {}", id, e))?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Preset slot ids must round-trip through the id the frontend sends when it
+    /// assigns a preset to a slot, so a slot can never be addressed by two names.
+    #[test]
+    fn preset_slot_ids_are_unique_and_described() {
+        let ids = [
+            ACTION_PRESET_1,
+            ACTION_PRESET_2,
+            ACTION_PRESET_3,
+            ACTION_PRESET_4,
+            ACTION_PRESET_5,
+        ];
+
+        let mut sorted = ids.to_vec();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(sorted.len(), ids.len(), "preset slot ids must be unique");
+
+        for id in ids {
+            assert_eq!(
+                get_action_description(id),
+                format!("Preset {}", &id["preset-".len()..]),
+                "every preset slot needs the label shown in the portal dialog"
+            );
+        }
+    }
+
+    /// New installs and older settings files both start with the preset slots
+    /// unbound. `SettingsManager::new` only backfills what `default()` contains, so
+    /// keeping the preset ids out of `default()` is what leaves a pre-existing
+    /// `settings.json` without preset bindings.
+    #[test]
+    fn defaults_leave_preset_slots_unbound() {
+        let defaults = ShortcutManager::default();
+        for id in [
+            ACTION_PRESET_1,
+            ACTION_PRESET_2,
+            ACTION_PRESET_3,
+            ACTION_PRESET_4,
+            ACTION_PRESET_5,
+        ] {
+            assert!(
+                !defaults.contains_key(id),
+                "{id} must have no default binding"
+            );
+        }
+        for id in [ACTION_TOGGLE, ACTION_START, ACTION_STOP] {
+            assert!(
+                defaults.contains_key(id),
+                "{id} must keep its default binding"
+            );
+        }
     }
 }

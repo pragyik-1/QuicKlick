@@ -68,7 +68,6 @@ pub fn set_target_cmd(app: AppHandle, target: ClickTargetPayload) {
         Some(t) => {
             let state = resolve_state(&app);
             *state.target.lock().unwrap() = t;
-            println!("Set target: {:?}", state.target.lock().unwrap());
             update_saved_state(&app);
         }
         None => {
@@ -130,7 +129,7 @@ pub fn set_sequence_cmd(app: AppHandle, sequence: Vec<SeqTargetPayload>) {
             });
         }
     }
-    
+
     let state = resolve_state(&app);
     *state.sequence.lock().unwrap() = parsed_sequence;
     update_saved_state(&app);
@@ -138,7 +137,9 @@ pub fn set_sequence_cmd(app: AppHandle, sequence: Vec<SeqTargetPayload>) {
 
 #[tauri::command]
 pub fn set_repeat_sequence_cmd(app: AppHandle, repeat: bool) {
-    resolve_state(&app).repeat_sequence.store(repeat, Ordering::SeqCst);
+    resolve_state(&app)
+        .repeat_sequence
+        .store(repeat, Ordering::SeqCst);
     update_saved_state(&app);
 }
 
@@ -161,6 +162,18 @@ pub fn update_shortcut_cmd(
     let sm = app.state::<Arc<crate::settings::SettingsManager>>();
     sm.update(|s| {
         s.shortcuts.insert(id, event);
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn clear_shortcut_cmd(app: AppHandle, id: String) -> Result<(), String> {
+    ShortcutManager::unbind(&app, &id)?;
+
+    let sm = app.state::<Arc<crate::settings::SettingsManager>>();
+    sm.update(|s| {
+        s.shortcuts.remove(&id);
     });
 
     Ok(())

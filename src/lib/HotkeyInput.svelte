@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { X } from 'lucide-svelte'
+
   const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta'])
 
   type CaptureEvent = { key: string; modifiers: string[] }
@@ -7,9 +9,10 @@
     value?: string
     onCapture?: (event: CaptureEvent) => void
     placeholder?: string
+    onClear?: () => void
   }
 
-  let { value = '', onCapture, placeholder = 'Click to bind...' }: Props = $props()
+  let { value = '', onCapture, placeholder = 'Click to bind...', onClear }: Props = $props()
 
   let listening = $state(false)
   let buttonRef = $state<HTMLButtonElement | null>(null)
@@ -77,28 +80,47 @@
 
   let formattedValue = $derived(value ? value.charAt(0).toUpperCase() + value.slice(1) : '')
   let displayText = $derived(formattedValue || placeholder)
+  let canClear = $derived(Boolean(onClear) && Boolean(value) && !listening)
 </script>
 
-<button
-  class="hotkey-input"
-  class:listening
-  class:empty={!value}
-  bind:this={buttonRef}
-  onclick={startListening}
-  onkeydown={listening ? handleKeydown : undefined}
-  onblur={handleBlur}
-  type="button"
->
-  {#if listening}
-    <span class="hotkey-listening-text">Press a key...</span>
-  {:else}
-    <span class="hotkey-value">{displayText}</span>
+<div class="hotkey-wrapper">
+  <button
+    class="hotkey-input"
+    class:listening
+    class:empty={!value}
+    bind:this={buttonRef}
+    onclick={startListening}
+    onkeydown={listening ? handleKeydown : undefined}
+    onblur={handleBlur}
+    type="button"
+  >
+    {#if listening}
+      <span class="hotkey-listening-text">Press a key...</span>
+    {:else}
+      <span class="hotkey-value">{displayText}</span>
+    {/if}
+  </button>
+  {#if canClear}
+    <button
+      class="hotkey-clear"
+      onclick={() => onClear?.()}
+      type="button"
+      title="Clear this shortcut"
+      aria-label="Clear this shortcut"
+    >
+      <X size={14} />
+    </button>
   {/if}
-</button>
+</div>
 
 <style>
+  .hotkey-wrapper {
+    position: relative;
+    width: 100%;
+  }
+
   .hotkey-input {
-    display: flex;
+    display: flex; 
     align-items: center;
     justify-content: center;
     width: 100%;
@@ -143,5 +165,31 @@
     font-family: var(--font-sans);
     font-weight: 500;
     animation: subtle-pulse 1.5s infinite;
+  }
+
+  .hotkey-clear {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: var(--round-sm);
+    background: transparent;
+    color: var(--muted-text);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease;
+  }
+
+  .hotkey-clear:hover {
+    color: var(--danger);
+    background-color: var(--input-focus);
   }
 </style>
