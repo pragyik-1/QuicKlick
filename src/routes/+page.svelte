@@ -2,8 +2,25 @@
   import { Card, Button, Input, Select, Switch, Row, toast } from '@hermitk/bluenite'
   import { clickerState } from '$lib/clickerState.svelte'
   import HotkeyInput from '$lib/HotkeyInput.svelte'
-  import { Play, Square, Gauge, Monitor, MousePointer2, Keyboard } from 'lucide-svelte'
-  import { DEVICE_OPTIONS, BUTTON_OPTIONS } from '../constants'
+  import {
+    Play,
+    Square,
+    Gauge,
+    Monitor,
+    MousePointer2,
+    Keyboard,
+    MousePointerClick,
+    Info,
+  } from 'lucide-svelte'
+  import {
+    CPS_MAX,
+    CPS_MIN,
+    DEVICE_OPTIONS,
+    BUTTON_OPTIONS,
+    HOME_CLICK_TYPE_OPTIONS,
+    HOLD_HINT,
+    ZERO_CPS_HINT,
+  } from '../constants'
 
   function onKeyCapture(e: { key: string; modifiers: string[] }) {
     clickerState.keyCode = e.key
@@ -55,10 +72,35 @@
       id="cps-input"
       type="number"
       bind:value={clickerState.cps}
-      min="0.01"
+      min={CPS_MIN}
+      max={CPS_MAX}
       step="0.1"
       placeholder="10"
     />
+  </div>
+
+  <div style="margin-top: 0.75rem;" class="field">
+    <label class="field-label" for="home-click-type">
+      <MousePointerClick size={16} />
+      Click Type
+    </label>
+    <Select
+      id="home-click-type"
+      style="color: var(--primary-text);"
+      options={HOME_CLICK_TYPE_OPTIONS}
+      bind:value={clickerState.clickType}
+    />
+    {#if clickerState.clickType === 'Hold'}
+      <p class="field-hint">
+        <Info size={14} />
+        {HOLD_HINT}
+      </p>
+    {:else if Number(clickerState.cps) === 0}
+      <p class="field-hint">
+        <Info size={14} />
+        {ZERO_CPS_HINT}
+      </p>
+    {/if}
   </div>
 
   <div style="margin-top: 0.75rem;" class="field">

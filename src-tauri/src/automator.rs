@@ -82,6 +82,7 @@ pub enum ClickType {
     Single,
     Double,
     Randomized,
+    Hold,
 }
 
 impl ClickType {
@@ -90,14 +91,25 @@ impl ClickType {
             "Single" => Some(Self::Single),
             "Double" => Some(Self::Double),
             "Randomized" => Some(Self::Randomized),
+            "Hold" => Some(Self::Hold),
             _ => None,
         }
     }
 }
+
+/// The input a hold currently has down, so the release always matches the press
+/// that started it and can be issued at most once.
+#[derive(Debug, Clone, Copy)]
+enum Held {
+    Button(enigo::Button),
+    Key(enigo::Key),
+}
+
 pub struct Automator<'a> {
     enigo: Enigo,
     timer: MacroTimer,
     last_pos: Option<(i32, i32)>,
+    held: Option<Held>,
     app: &'a tauri::AppHandle,
 }
 
@@ -110,6 +122,7 @@ impl<'a> Automator<'a> {
             enigo,
             timer: MacroTimer::start(),
             last_pos: None,
+            held: None,
             app,
         })
     }
@@ -142,28 +155,113 @@ impl<'a> Automator<'a> {
     }
 
     fn mouse_click(&mut self, button: &MouseButton, pos: Option<(i32, i32)>) {
-        if let Some((x, y)) = pos {
-            if self.last_pos != Some((x, y)) {
-                let _ = self.enigo.move_mouse(x, y, enigo::Coordinate::Abs);
-                self.last_pos = Some((x, y));
-            }
-        }
+        self.move_to(pos);
         let _ = self
             .enigo
             .button(button.to_enigo(), enigo::Direction::Click);
     }
 
     fn key_click(&mut self, key: &KeyCode) {
-        let key = match key.to_enigo_key() {
-            Some(k) => k,
-            None => {
-                let _ = self.app.emit(
-                    "error",
-                    format!("Failed to convert key code {:?} to Enigo key", key),
-                );
-                return;
+        if let Some(key) = self.enigo_key(key) {
+            let _ = self.enigo.key(key, enigo::Direction::Click);
+        }
+    }
+
+    /// Presses the target's input and leaves it down, so the click loop can hold
+    /// it for a duration instead of releasing it straight away. The press is
+    /// paired with [`Automator::end_hold`], which the loop calls on every exit
+    /// path, including one interrupted by a stop.
+    pub fn begin_hold(&mut self, target: &ClickTarget) {
+        match target.device {
+            Device::Mouse => {
+                if let Some(button) = &target.button {
+                    self.move_to(target.mouse_position);
+                    let button = button.to_enigo();
+                    match self.enigo.button(button, enigo::Direction::Press) {
+                        Ok(()) => self.held = Some(Held::Button(button)),
+                        // Reported rather than dropped: a press that never lands
+                        // leaves this hold cycle doing nothing at all.
+                        Err(e) => self.report(format!("Failed to hold mouse button: {e}")),
+                    }
+                }
             }
-        };
-        let _ = self.enigo.key(key, enigo::Direction::Click);
+            Device::Keyboard => {
+                if let Some(key) = &target.key_code {
+                    if let Some(key) = self.enigo_key(key) {
+                        match self.enigo.key(key, enigo::Direction::Press) {
+                            Ok(()) => self.held = Some(Held::Key(key)),
+                            Err(e) => self.report(format!("Failed to hold key: {e}")),
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Releases whatever [`Automator::begin_hold`] pressed. Releasing nothing, or
+    /// releasing the same hold twice, does nothing
+    pub fn end_hold(&mut self) {
+        match self.held.take() {
+            Some(Held::Button(button)) => {
+                if let Err(e) = self.enigo.button(button, enigo::Direction::Release) {
+                    self.report(format!("Failed to release mouse button: {e}"));
+                }
+            }
+            Some(Held::Key(key)) => {
+                if let Err(e) = self.enigo.key(key, enigo::Direction::Release) {
+                    self.report(format!("Failed to release key: {e}"));
+                }
+            }
+            None => {}
+        }
+    }
+
+    /// Moves the pointer to the position the target pins, skipping the move when
+    /// the pointer is already there.
+    fn move_to(&mut self, pos: Option<(i32, i32)>) {
+        if let Some((x, y)) = pos {
+            if self.last_pos != Some((x, y)) {
+                let _ = self.enigo.move_mouse(x, y, enigo::Coordinate::Abs);
+                self.last_pos = Some((x, y));
+            }
+        }
+    }
+
+    fn enigo_key(&self, key: &KeyCode) -> Option<enigo::Key> {
+        match key.to_enigo_key() {
+            Some(k) => Some(k),
+            None => {
+                self.report(format!("Failed to convert key code {:?} to Enigo key", key));
+                None
+            }
+        }
+    }
+
+    /// Hands a failure the user can act on to the frontend. A failed emit leaves
+    /// only the process stderr to say so.
+    fn report(&self, message: String) {
+        if let Err(e) = self.app.emit("error", message) {
+            eprintln!("Failed to deliver error to the frontend: {e}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ClickType;
+
+    /// Hold arrives from the frontend as a plain string, the same as every other
+    /// click type, and an unknown name must not resolve to a click type.
+    #[test]
+    fn hold_parses_from_its_wire_name() {
+        assert_eq!(ClickType::parse_str("Hold"), Some(ClickType::Hold));
+        assert_eq!(ClickType::parse_str("Single"), Some(ClickType::Single));
+        assert_eq!(ClickType::parse_str("Double"), Some(ClickType::Double));
+        assert_eq!(
+            ClickType::parse_str("Randomized"),
+            Some(ClickType::Randomized)
+        );
+        assert_eq!(ClickType::parse_str("hold"), None);
+        assert_eq!(ClickType::parse_str(""), None);
     }
 }

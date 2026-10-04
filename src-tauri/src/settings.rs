@@ -107,7 +107,10 @@ impl SettingsManager {
             s
         } else {
             load_failed = true;
-            let _ = app.emit("error", "Failed to load settings, using defaults and disabling saving");
+            let _ = app.emit(
+                "error",
+                "Failed to load settings, using defaults and disabling saving",
+            );
             AppSettings::default()
         };
 
@@ -122,9 +125,10 @@ impl SettingsManager {
     pub fn save(&self) {
         if let Ok(settings) = self.settings.lock() {
             if self.has_load_failed.load(Ordering::SeqCst) {
-                let _ = self
-                    .app_handle
-                    .emit("error", "Saving has been disabled because loading settings failed");
+                let _ = self.app_handle.emit(
+                    "error",
+                    "Saving has been disabled because loading settings failed",
+                );
                 return;
             }
             let data = serde_json::to_string_pretty(&*settings).unwrap_or_default();
@@ -227,7 +231,7 @@ mod tests {
                 click_type: ClickType::Single,
                 randomize_amount: None,
             },
-            mode: crate::utils::MODE_NORMAL,
+            mode: crate::click_loop::MODE_NORMAL,
             sequence: Vec::new(),
             repeat_sequence: true,
         }

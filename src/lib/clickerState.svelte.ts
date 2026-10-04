@@ -1,13 +1,16 @@
 import { invoke } from '@tauri-apps/api/core'
 import { toast } from '@hermitk/bluenite'
 import { listen } from '@tauri-apps/api/event'
+import { CPS_MAX, CPS_MIN } from '../constants'
+
+export type ClickTypeValue = 'Single' | 'Double' | 'Randomized' | 'Hold'
 
 export interface ClickTarget {
   device: 'Mouse' | 'Keyboard'
   button: 'Left' | 'Right' | 'Middle' | null
   keyCode: string | null
   mousePosition: [number, number] | null
-  clickType: 'Single' | 'Double' | 'Randomized'
+  clickType: ClickTypeValue
   randomizeAmount?: number
 }
 
@@ -102,7 +105,7 @@ class ClickerState {
   private _useCustomPos = $state(false)
   private _posX = $state('0')
   private _posY = $state('0')
-  private _clickType = $state<'Single' | 'Double' | 'Randomized'>('Single')
+  private _clickType = $state<ClickTypeValue>('Single')
   private _randomizeAmount = $state('10')
   private _isLimited = $state(false)
   private _numClicks = $state('0')
@@ -145,7 +148,16 @@ class ClickerState {
     this._cps = val
     this.clearActivePreset()
     const n = parseFloat(val)
-    if (!isNaN(n) && n > 0) this.invoke('set_cps_cmd', { cps: n })
+    if (isNaN(n)) return
+    // Zero is a real setting only with hold so 0 is accpted
+    if (n < CPS_MIN || n > CPS_MAX) {
+      toast.show({
+        message: `Clicks per second must be between ${CPS_MIN} and ${CPS_MAX}`,
+        variant: 'danger',
+      })
+      return
+    }
+    this.invoke('set_cps_cmd', { cps: n })
   }
 
   get device() {
@@ -193,7 +205,7 @@ class ClickerState {
   get clickType() {
     return this._clickType
   }
-  set clickType(val: 'Single' | 'Double' | 'Randomized') {
+  set clickType(val: ClickTypeValue) {
     this.updateTarget(() => this._clickType = val)
   }
 
@@ -390,8 +402,11 @@ class ClickerState {
   }
 
   async savePreset(name: string) {
+    // A CPS of zero is a real setting (hold until stopped), so only an empty or
+    // unparsable field falls back to the default.
+    const cps = parseFloat(this._cps)
     const currentState: SavedState = {
-      cps: parseFloat(this._cps) || 10,
+      cps: isNaN(cps) ? 10 : cps,
       click_limit: parseInt(this._clickLimit) || 100,
       is_limited: this._isLimited,
       target: {
@@ -430,8 +445,7 @@ class ClickerState {
           this.posX = preset.target.mouse_position[0].toString()
           this.posY = preset.target.mouse_position[1].toString()
         }
-        this.clickType =
-          (preset.target.click_type as 'Single' | 'Double' | 'Randomized') ?? 'Single'
+        this.clickType = (preset.target.click_type as ClickTypeValue) ?? 'Single'
         this.randomizeAmount = (preset.target.randomize_amount ?? 0).toString()
         if (preset.mode !== undefined) {
           this.mode = preset.mode
@@ -516,7 +530,7 @@ class ClickerState {
         const curY = parseInt(this._posY)
         if (!isNaN(curY) && curY !== t.mouse_position[1]) this._posY = String(t.mouse_position[1])
       }
-      this._clickType = (t.click_type as 'Single' | 'Double' | 'Randomized') ?? 'Single'
+      this._clickType = (t.click_type as ClickTypeValue) ?? 'Single'
       const curRandomize = parseInt(this._randomizeAmount)
       const backendRandomize = t.randomize_amount ?? 0
       if (!isNaN(curRandomize) && curRandomize !== backendRandomize) {

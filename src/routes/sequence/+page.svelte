@@ -1,6 +1,10 @@
 <script lang="ts">
   import { Card, Button, Input, Select, Switch, Row } from '@hermitk/bluenite'
-  import { clickerState, type SeqTargetPayload } from '$lib/clickerState.svelte'
+  import {
+    clickerState,
+    type ClickTypeValue,
+    type SeqTargetPayload,
+  } from '$lib/clickerState.svelte'
   import HotkeyInput from '$lib/HotkeyInput.svelte'
   import {
     Play,
@@ -13,8 +17,14 @@
     TimerReset,
     ListPlus,
     Trash2,
+    Info,
   } from 'lucide-svelte'
-  import { DEVICE_OPTIONS, BUTTON_OPTIONS, CLICK_TYPE_OPTIONS } from '../../constants'
+  import {
+    DEVICE_OPTIONS,
+    BUTTON_OPTIONS,
+    CLICK_TYPE_OPTIONS,
+    SEQUENCE_HOLD_HINT,
+  } from '../../constants'
 
   let formDevice = $state<'Mouse' | 'Keyboard'>('Mouse')
   let formButton = $state<'Left' | 'Right' | 'Middle'>('Left')
@@ -22,7 +32,7 @@
   let formUseCustomPos = $state(false)
   let formPosX = $state('0')
   let formPosY = $state('0')
-  let formClickType = $state<'Single' | 'Double' | 'Randomized'>('Single')
+  let formClickType = $state<ClickTypeValue>('Single')
   let formRandomizeAmount = $state('10')
   let formWaitTime = $state('1000')
 
@@ -31,6 +41,9 @@
   }
 
   function addTarget() {
+    // An empty or negative wait falls back to the default; a zero wait is kept,
+    // since a Hold step reads it as "no time to hold" and stays a plain click.
+    const waitTime = parseInt(formWaitTime)
     const newTarget: SeqTargetPayload = {
       target: {
         device: formDevice,
@@ -44,7 +57,7 @@
         randomize_amount:
           formClickType === 'Randomized' ? parseInt(formRandomizeAmount) || 0 : null,
       },
-      wait_time: parseInt(formWaitTime) || 1000,
+      wait_time: isNaN(waitTime) || waitTime < 0 ? 1000 : waitTime,
     }
 
     clickerState.sequence = [...clickerState.sequence, newTarget]
@@ -137,7 +150,9 @@
                   : step.target.key_code})
               </div>
               <div class="step-details">
-                Type: {step.target.click_type} • Wait: {step.wait_time}ms
+                Type: {step.target.click_type} • {step.target.click_type === 'Hold'
+                  ? 'Hold'
+                  : 'Wait'}: {step.wait_time}ms
                 {#if step.target.mouse_position}
                   • Pos: {step.target.mouse_position[0]}, {step.target.mouse_position[1]}
                 {/if}
@@ -245,7 +260,8 @@
 
       <div class="field-compact">
         <label class="field-label-sm" for="seq-wait">
-          <TimerReset size={14} /> Wait Time (ms)
+          <TimerReset size={14} />
+          {formClickType === 'Hold' ? 'Hold Time (ms)' : 'Wait Time (ms)'}
         </label>
         <Input
           style="color: var(--primary-text);"
@@ -255,6 +271,12 @@
           min="0"
           placeholder="1000"
         />
+        {#if formClickType === 'Hold'}
+          <p class="field-hint">
+            <Info size={14} />
+            {SEQUENCE_HOLD_HINT}
+          </p>
+        {/if}
       </div>
     </div>
 

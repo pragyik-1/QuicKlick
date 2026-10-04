@@ -67,8 +67,7 @@ you must hold.
   scheduler: user input, Tauri IPC payloads, `settings.json`, env vars, filesystem paths. Ranges
   are named constants shared between frontend and backend, never duplicated literals.
 - **R1.5** No dead code, no commented-out blocks, no `TODO`/`FIXME`/`XXX`/`HACK` in merged code.
-  An unfinished idea is an issue or a branch. **[DEBT]** `src-tauri/src/utils.rs:158` silently
-  substitutes `Key::Control` for F13+ under a `// TODO`; never propagate that shape.
+  An unfinished idea is an issue or a branch.
 - **R1.6** Never claim what you did not verify: report the command you ran and its output.
 - **R1.7** Code must work on the first run in the target environment: Linux/Wayland and
   Linux/X11 are supported, and every other platform must degrade rather than panic.
@@ -82,7 +81,7 @@ you must hold.
   code to make room for a new requirement is prohibited unless that rewrite is the task.
 - **R2.3** No premature abstraction — no generic frameworks, trait hierarchies, or plugin
   systems for a single concrete use. **[DEBT]** `ClickerState`
-  (`src/lib/clickerState.svelte.ts`, 468 lines) has 15 near-identical getter/setter pairs; do not
+  (`src/lib/clickerState.svelte.ts`, 468 lines) has 15 near-identical getter/setter paifghfghfghfghfghfgh
   add a 16th without also considering extraction, and do not rewrite it unasked.
 - **R2.4** No hard-coded shortcuts that must be torn out later. Anything varying by
   environment, platform, or configuration is a setting, a constant, or a `#[cfg]`-gated

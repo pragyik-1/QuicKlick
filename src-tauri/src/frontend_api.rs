@@ -78,11 +78,26 @@ pub fn get_app_state_cmd(app: AppHandle) -> AppStateDto {
     resolve_state(&app).to_dto()
 }
 
+/// Smallest accepted CPS. Zero is meaningful: with the Hold click type the input
+/// is pressed and never released until the clicker stops.
+pub const MIN_CPS: f64 = 0.0;
+/// Largest accepted CPS. Bounds the click interval to a millisecond so a typo
+/// cannot ask for a cycle the scheduler cannot express.
+pub const MAX_CPS: f64 = 1000.0;
+
 #[tauri::command]
-pub fn set_cps_cmd(app: AppHandle, cps: f64) {
+pub fn set_cps_cmd(app: AppHandle, cps: f64) -> Result<(), String> {
+    // Rejects NaN and infinity too. both reach `Duration::from_secs_f64` in the
+    // scheduler, which panics on them.
+    if !cps.is_finite() || !(MIN_CPS..=MAX_CPS).contains(&cps) {
+        return Err(format!(
+            "Clicks per second must be between {MIN_CPS} and {MAX_CPS}, got {cps}"
+        ));
+    }
     let state = resolve_state(&app);
     *state.cps.lock().unwrap() = cps;
     update_saved_state(&app);
+    Ok(())
 }
 
 #[tauri::command]
