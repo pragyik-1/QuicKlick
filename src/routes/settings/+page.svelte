@@ -2,7 +2,6 @@
   import { Card, Input, Button, Switch, Row, Modal, toast } from '@hermitk/bluenite'
   import { clickerState } from '$lib/clickerState.svelte'
   import HotkeyInput from '$lib/HotkeyInput.svelte'
-  import { invoke } from '@tauri-apps/api/core'
   import { onMount } from 'svelte'
   import {
     TriangleAlert,
@@ -60,8 +59,8 @@
 
   onMount(async () => {
     try {
-      isWayland = await invoke<boolean>('is_wayland_cmd')
-      isLinux = await invoke<boolean>('is_linux_cmd')
+      isWayland = await clickerState.isWayland()
+      isLinux = await clickerState.isLinux()
       await clickerState.syncSettings()
       for (const [id, event] of Object.entries(clickerState.settings.shortcuts)) {
         bindings[id] = formatDisplay(event.key, event.modifiers)

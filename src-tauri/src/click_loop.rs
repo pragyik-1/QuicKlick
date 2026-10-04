@@ -11,11 +11,11 @@ use crate::{AppState, ClickerSig};
 
 /// Maximum frequency at which UI state updates are emitted during clicking.
 const EMIT_INTERVAL: Duration = Duration::from_millis(50);
+const MODE_NORMAL: u8 = 0;
+const MODE_SEQUENCE: u8 = 1;
 
 pub fn run(app: AppHandle, state: Arc<AppState>, rx: Receiver<ClickerSig>) {
-    std::thread::sleep(Duration::from_secs(1));
-
-    let mut automator = match Automator::new() {
+    let mut automator = match Automator::new(&app) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("Failed to initialize input automation: {e}");
@@ -46,10 +46,10 @@ pub fn run(app: AppHandle, state: Arc<AppState>, rx: Receiver<ClickerSig>) {
         } else {
             let mode = state.mode.load(Ordering::SeqCst);
 
-            if mode == 0 {
+            if mode == MODE_NORMAL {
                 // Normal mode
                 let target = state.target.lock().unwrap().clone();
-                let cps = f64::from_bits(state.cps.load(Ordering::SeqCst));
+                let cps = *state.cps.lock().unwrap();
 
                 let start = Instant::now();
                 automator.handle_click(&target);
@@ -73,8 +73,7 @@ pub fn run(app: AppHandle, state: Arc<AppState>, rx: Receiver<ClickerSig>) {
                     state.stop_and_emit(&app);
                     last_emit = Instant::now();
                 }
-            } else {
-                // Sequence mode
+            } else if mode == MODE_SEQUENCE {
                 let sequence = state.sequence.lock().unwrap().clone();
                 if sequence.is_empty() {
                     state.stop_and_emit(&app);

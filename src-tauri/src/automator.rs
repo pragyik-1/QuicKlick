@@ -4,6 +4,7 @@ use crate::frontend_api::ClickTargetPayload;
 use crate::utils::{KeyCode, MacroTimer};
 use enigo::{Enigo, Keyboard, Mouse, Settings};
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ClickTarget {
@@ -93,21 +94,23 @@ impl ClickType {
         }
     }
 }
-pub struct Automator {
+pub struct Automator<'a> {
     enigo: Enigo,
     timer: MacroTimer,
     last_pos: Option<(i32, i32)>,
+    app: &'a tauri::AppHandle,
 }
 
-impl Automator {
+impl<'a> Automator<'a> {
     const DOUBLE_CLICK_GAP: Duration = Duration::from_millis(15);
 
-    pub fn new() -> Result<Self, String> {
+    pub fn new(app: &'a tauri::AppHandle) -> Result<Self, String> {
         let enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
         Ok(Self {
             enigo,
             timer: MacroTimer::start(),
             last_pos: None,
+            app,
         })
     }
 
@@ -151,6 +154,16 @@ impl Automator {
     }
 
     fn key_click(&mut self, key: &KeyCode) {
-        let _ = self.enigo.key(key.to_enigo_key(), enigo::Direction::Click);
+        let key = match key.to_enigo_key() {
+            Some(k) => k,
+            None => {
+                let _ = self.app.emit(
+                    "error",
+                    format!("Failed to convert key code {:?} to Enigo key", key),
+                );
+                return;
+            }
+        };
+        let _ = self.enigo.key(key, enigo::Direction::Click);
     }
 }

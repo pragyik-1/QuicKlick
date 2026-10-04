@@ -1,7 +1,7 @@
 use crate::automator::ClickTarget;
 use crate::shortcuts::ShortcutManager;
 use crate::utils::{InputEvent, KeyCode, Modifier};
-use crate::{resolve_state, set_active, Errors};
+use crate::{resolve_state, set_active, toggle_clicker};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -38,10 +38,7 @@ pub struct AppStateDto {
 
 #[tauri::command]
 pub fn toggle_clicker_cmd(app: AppHandle) -> bool {
-    let state = resolve_state(&app);
-    let will_run = !state.is_running.load(Ordering::SeqCst);
-    set_active(will_run, &app);
-    will_run
+    toggle_clicker(&app)
 }
 
 pub fn update_saved_state(app: &AppHandle) {
@@ -50,7 +47,7 @@ pub fn update_saved_state(app: &AppHandle) {
     if sm.get().persist_app_state {
         sm.update(|s| {
             s.saved_state = Some(crate::settings::SavedState {
-                cps: f64::from_bits(state.cps.load(Ordering::SeqCst)),
+                cps: *state.cps.lock().unwrap(),
                 click_limit: state.click_limit.load(Ordering::SeqCst),
                 is_limited: state.is_limited.load(Ordering::SeqCst),
                 target: state.target.lock().unwrap().clone(),
@@ -71,7 +68,7 @@ pub fn set_target_cmd(app: AppHandle, target: ClickTargetPayload) {
             update_saved_state(&app);
         }
         None => {
-            let _ = app.emit("error", Errors::InvalidTarget);
+            let _ = app.emit("error", "Invalid target");
         }
     }
 }
@@ -83,9 +80,8 @@ pub fn get_app_state_cmd(app: AppHandle) -> AppStateDto {
 
 #[tauri::command]
 pub fn set_cps_cmd(app: AppHandle, cps: f64) {
-    resolve_state(&app)
-        .cps
-        .store(cps.to_bits(), Ordering::SeqCst);
+    let state = resolve_state(&app);
+    *state.cps.lock().unwrap() = cps;
     update_saved_state(&app);
 }
 

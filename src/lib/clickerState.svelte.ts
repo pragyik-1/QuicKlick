@@ -128,6 +128,16 @@ class ClickerState {
     if (!this._isApplyingPreset) this._activePreset = ''
   }
 
+  private updateState(fn: () => void) {
+    fn()
+    this.clearActivePreset()
+  }
+
+  private updateTarget(fn: () => void) {
+    this.updateState(fn)
+    this.applyTarget().catch((err) => toast.show({ message: `Failed to apply target: ${err}`, variant: 'danger' }))
+  }
+
   get cps() {
     return this._cps
   }
@@ -142,63 +152,49 @@ class ClickerState {
     return this._device
   }
   set device(val: 'Mouse' | 'Keyboard') {
-    this._device = val
-    this.clearActivePreset()
-    this.applyTarget()
+    this.updateTarget(() => this._device = val)
   }
 
   get button() {
     return this._button
   }
   set button(val: 'Left' | 'Right' | 'Middle') {
-    this._button = val
-    this.clearActivePreset()
-    this.applyTarget()
+    this.updateTarget(() => this._button = val)
   }
 
   get keyCode() {
     return this._keyCode
   }
   set keyCode(val: string) {
-    this._keyCode = val
-    this.clearActivePreset()
-    this.applyTarget()
+    this.updateTarget(() => this._keyCode = val)
   }
 
   get useCustomPos() {
     return this._useCustomPos
   }
   set useCustomPos(val: boolean) {
-    this._useCustomPos = val
-    this.clearActivePreset()
-    this.applyTarget()
+    this.updateTarget(() => this._useCustomPos = val)
   }
 
   get posX() {
     return this._posX
   }
   set posX(val: string) {
-    this._posX = val
-    this.clearActivePreset()
-    this.applyTarget()
+    this.updateTarget(() => this._posX = val)
   }
 
   get posY() {
     return this._posY
   }
   set posY(val: string) {
-    this._posY = val
-    this.clearActivePreset()
-    this.applyTarget()
+    this.updateState(() => this._posY = val)
   }
 
   get clickType() {
     return this._clickType
   }
   set clickType(val: 'Single' | 'Double' | 'Randomized') {
-    this._clickType = val
-    this.clearActivePreset()
-    this.applyTarget()
+    this.updateTarget(() => this._clickType = val)
   }
 
   get randomizeAmount() {
@@ -243,9 +239,10 @@ class ClickerState {
     return this._mode
   }
   set mode(val: number) {
-    this._mode = val
-    this.clearActivePreset()
-    this.invoke('set_mode_cmd', { mode: val })
+    this.updateState(() => {
+      this._mode = val
+      this.invoke('set_mode_cmd', { mode: val })
+    })
   }
 
   get sequence() {
@@ -288,18 +285,36 @@ class ClickerState {
         }
       })
     } catch (err) {
-      console.error('Failed to initialize clicker state:', err)
+      toast.show({ message: `Failed to initialize clicker state: ${err}`, variant: 'danger' })
     }
   }
 
-  private async invoke(cmd: string, args?: Record<string, unknown>) {
+  private async invoke<T>(cmd: string, args?: Record<string, unknown>, showToast: boolean = true): Promise<T> {
     try {
-      await invoke(cmd, args)
+      const res = await invoke<T>(cmd, args)
+      return res
     } catch (err) {
-      console.error(`Failed: ${cmd}`, err)
+      if (showToast) {
+        toast.show({ message: `Failed: ${cmd}: ${err}`, variant: 'danger' })
+      }
+      throw err
     } finally {
       this.sync()
     }
+  }
+
+  async isWayland(): Promise<boolean> {
+    return await this.invoke<boolean>('is_wayland_cmd').catch((err) => {
+      toast.show({ message: `Failed to check Wayland: ${err}`, variant: 'danger' })
+      return false
+    })
+  }
+
+  async isLinux() {
+    return await this.invoke<boolean>('is_linux_cmd').catch((err) => {
+      toast.show({ message: `Failed to check Linux: ${err}`, variant: 'danger' })
+      return false
+    })
   }
 
   async sync() {
@@ -313,7 +328,7 @@ class ClickerState {
       return false
     }
     try {
-      const running = await invoke<boolean>('toggle_clicker_cmd')
+      const running = await this.invoke<boolean>('toggle_clicker_cmd')
       this.isRunning = running
       return running
     } catch (err) {
@@ -326,7 +341,7 @@ class ClickerState {
 
   async updateShortcut(id: string, newKey: string, modifiers: string[]) {
     try {
-      await invoke('update_shortcut_cmd', { id, newKey, modifiers })
+      await this.invoke('update_shortcut_cmd', { id, newKey, modifiers }, false)
       await this.syncSettings()
     } catch (err) {
       console.error('Failed to update shortcut:', err)
@@ -340,7 +355,7 @@ class ClickerState {
    * `settings.shortcuts[id]` is undefined afterwards and reads as "None". */
   async clearShortcut(id: string) {
     try {
-      await invoke('clear_shortcut_cmd', { id })
+      await this.invoke('clear_shortcut_cmd', { id }, false)
       await this.syncSettings()
     } catch (err) {
       toast.show({ message: `Failed to clear shortcut: ${err}`, variant: 'danger' })
@@ -352,7 +367,7 @@ class ClickerState {
    * `name` is empty. */
   async setPresetSlot(id: string, name: string) {
     try {
-      await invoke('set_preset_slot_cmd', { slot: id, name })
+      await this.invoke('set_preset_slot_cmd', { slot: id, name }, false)
       await this.syncSettings()
     } catch (err) {
       toast.show({ message: `Failed to assign preset: ${err}`, variant: 'danger' })
@@ -361,17 +376,17 @@ class ClickerState {
   }
 
   async syncSettings() {
-    this.settings = withPresetSlots(await invoke<AppSettings>('get_settings_cmd'))
+    this.settings = withPresetSlots(await this.invoke<AppSettings>('get_settings_cmd'))
   }
 
   async setPersistAppState(val: boolean) {
     this.settings.persist_app_state = val
-    await invoke('set_persist_app_state_cmd', { persist: val })
+    await this.invoke('set_persist_app_state_cmd', { persist: val })
   }
 
   async setUseEvdevShortcuts(val: boolean) {
     this.settings.use_evdev_shortcuts = val
-    await invoke('set_use_evdev_shortcuts_cmd', { enabled: val })
+    await this.invoke('set_use_evdev_shortcuts_cmd', { enabled: val })
   }
 
   async savePreset(name: string) {
@@ -395,7 +410,7 @@ class ClickerState {
       sequence: [...this._sequence],
       repeat_sequence: this._repeatSequence,
     }
-    await invoke('save_preset_cmd', { name, state: currentState })
+    await this.invoke('save_preset_cmd', { name, state: currentState })
     await this.syncSettings()
   }
 
@@ -438,8 +453,12 @@ class ClickerState {
   }
 
   async deletePreset(name: string) {
-    await invoke('delete_preset_cmd', { name })
-    await this.syncSettings()
+    try {
+      await this.invoke('delete_preset_cmd', { name }, false)
+      await this.syncSettings()
+    } catch (err) {
+      toast.show({ message: `Failed to delete preset: ${err}`, variant: 'danger' })
+    }
   }
 
   private async applyTarget() {

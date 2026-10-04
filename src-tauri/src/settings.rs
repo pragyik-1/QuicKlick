@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -80,11 +81,13 @@ pub struct SettingsManager {
     filepath: PathBuf,
     pub settings: Mutex<AppSettings>,
     app_handle: AppHandle,
+    has_load_failed: AtomicBool,
 }
 
 impl SettingsManager {
     pub fn new(app: &AppHandle) -> Arc<Self> {
-        let mut path = app
+        let mut load_failed: bool = false;
+        let mut path: PathBuf = app
             .path()
             .app_data_dir()
             .unwrap_or_else(|_| std::env::current_dir().unwrap());
@@ -103,6 +106,8 @@ impl SettingsManager {
             }
             s
         } else {
+            load_failed = true;
+            let _ = app.emit("error", "Failed to load settings, using defaults and disabling saving");
             AppSettings::default()
         };
 
@@ -110,11 +115,18 @@ impl SettingsManager {
             filepath: path,
             settings: Mutex::new(settings),
             app_handle: app.clone(),
+            has_load_failed: AtomicBool::new(load_failed),
         })
     }
 
     pub fn save(&self) {
         if let Ok(settings) = self.settings.lock() {
+            if self.has_load_failed.load(Ordering::SeqCst) {
+                let _ = self
+                    .app_handle
+                    .emit("error", "Saving has been disabled because loading settings failed");
+                return;
+            }
             let data = serde_json::to_string_pretty(&*settings).unwrap_or_default();
             let res = fs::write(&self.filepath, data);
             if let Err(e) = res {

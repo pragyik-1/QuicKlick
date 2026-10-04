@@ -654,10 +654,6 @@ mod tests {
         }
     }
 
-    /// New installs and older settings files both start with the preset slots
-    /// unbound. `SettingsManager::new` only backfills what `default()` contains, so
-    /// keeping the preset ids out of `default()` is what leaves a pre-existing
-    /// `settings.json` without preset bindings.
     #[test]
     fn defaults_leave_preset_slots_unbound() {
         let defaults = ShortcutManager::default_shortcuts();

@@ -4,9 +4,6 @@ use std::time::{Duration, Instant};
 use enigo::Key;
 use serde::{Deserialize, Serialize};
 
-pub const MODE_NORMAL: u8 = 0;
-pub const MODE_SEQUENCE: u8 = 1;
-
 pub fn is_wayland() -> bool {
     #[cfg(target_os = "linux")]
     {
@@ -125,40 +122,40 @@ impl KeyCode {
         }
     }
 
-    pub fn to_enigo_key(&self) -> enigo::Key {
+    pub fn to_enigo_key(&self) -> Option<enigo::Key> {
         match self {
-            KeyCode::Space => Key::Space,
-            KeyCode::Enter => Key::Return,
-            KeyCode::Tab => Key::Tab,
-            KeyCode::Backspace => Key::Backspace,
-            KeyCode::Left => Key::LeftArrow,
-            KeyCode::Right => Key::RightArrow,
-            KeyCode::Up => Key::UpArrow,
-            KeyCode::Down => Key::DownArrow,
-            KeyCode::Home => Key::Home,
-            KeyCode::End => Key::End,
-            KeyCode::PageUp => Key::PageUp,
-            KeyCode::PageDown => Key::PageDown,
-            KeyCode::Escape => Key::Escape,
-            KeyCode::Insert => Key::Insert,
-            KeyCode::Delete => Key::Delete,
+            KeyCode::Space => Some(Key::Space),
+            KeyCode::Enter => Some(Key::Return),
+            KeyCode::Tab => Some(Key::Tab),
+            KeyCode::Backspace => Some(Key::Backspace),
+            KeyCode::Left => Some(Key::LeftArrow),
+            KeyCode::Right => Some(Key::RightArrow),
+            KeyCode::Up => Some(Key::UpArrow),
+            KeyCode::Down => Some(Key::DownArrow),
+            KeyCode::Home => Some(Key::Home),
+            KeyCode::End => Some(Key::End),
+            KeyCode::PageUp => Some(Key::PageUp),
+            KeyCode::PageDown => Some(Key::PageDown),
+            KeyCode::Escape => Some(Key::Escape),
+            KeyCode::Insert => Some(Key::Insert),
+            KeyCode::Delete => Some(Key::Delete),
             KeyCode::F(n) => match n {
-                1 => Key::F1,
-                2 => Key::F2,
-                3 => Key::F3,
-                4 => Key::F4,
-                5 => Key::F5,
-                6 => Key::F6,
-                7 => Key::F7,
-                8 => Key::F8,
-                9 => Key::F9,
-                10 => Key::F10,
-                11 => Key::F11,
-                12 => Key::F12,
-                _ => Key::Control, // TODO: Handle this case properly.
+                1 => Some(Key::F1),
+                2 => Some(Key::F2),
+                3 => Some(Key::F3),
+                4 => Some(Key::F4),
+                5 => Some(Key::F5),
+                6 => Some(Key::F6),
+                7 => Some(Key::F7),
+                8 => Some(Key::F8),
+                9 => Some(Key::F9),
+                10 => Some(Key::F10),
+                11 => Some(Key::F11),
+                12 => Some(Key::F12),
+                _ => None, // TODO: Handle this case properly.
             },
-            KeyCode::Char(c) => Key::Unicode(*c),
-            KeyCode::Unknown(s) => Key::Unicode(s.chars().next().unwrap_or('\0')),
+            KeyCode::Char(c) => Some(Key::Unicode(*c)),
+            KeyCode::Unknown(s) => Some(Key::Unicode(s.chars().next().unwrap_or('\0'))),
         }
     }
     pub fn parse_str(code_str: Option<&str>) -> Option<Self> {

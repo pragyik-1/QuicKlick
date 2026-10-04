@@ -14,3 +14,6 @@ export const CLICK_TYPE_OPTIONS = [
   { label: 'Double', value: 'Double' },
   { label: 'Randomize', value: 'Randomized' },
 ]
+
+export const MODE_NORMAL = 0
+export const MODE_SEQUENCE = 1

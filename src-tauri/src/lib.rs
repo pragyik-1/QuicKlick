@@ -17,14 +17,9 @@ pub enum ClickerSig {
     Stop,
 }
 
-#[derive(Clone, serde::Serialize)]
-pub enum Errors {
-    InvalidTarget,
-}
-
 pub struct AppState {
     pub is_running: AtomicBool,
-    pub cps: AtomicU64,
+    pub cps: Mutex<f64>,
     pub click_limit: AtomicU64,
     pub num_clicks: AtomicU64,
     pub is_limited: AtomicBool,
@@ -39,7 +34,7 @@ impl Default for AppState {
         use automator::{ClickType, Device, MouseButton};
         Self {
             is_running: AtomicBool::new(false),
-            cps: AtomicU64::new(10.0f64.to_bits()),
+            cps: Mutex::new(10.0f64),
             click_limit: AtomicU64::new(100),
             num_clicks: AtomicU64::new(0),
             is_limited: AtomicBool::new(false),
@@ -62,7 +57,7 @@ impl AppState {
     pub fn to_dto(&self) -> AppStateDto {
         AppStateDto {
             is_running: self.is_running.load(Ordering::SeqCst),
-            cps: f64::from_bits(self.cps.load(Ordering::SeqCst)),
+            cps: *self.cps.lock().unwrap(),
             click_limit: self.click_limit.load(Ordering::SeqCst),
             num_clicks: self.num_clicks.load(Ordering::SeqCst),
             is_limited: self.is_limited.load(Ordering::SeqCst),
@@ -74,7 +69,7 @@ impl AppState {
     }
 
     pub fn emit(&self, app: &AppHandle) {
-        let _ = app.emit("state_change", self.to_dto());
+        app.emit("state_change", self.to_dto()).unwrap();
     }
 
     pub fn stop_and_emit(&self, app: &AppHandle) {
@@ -89,7 +84,9 @@ pub fn resolve_state(app: &AppHandle) -> Arc<AppState> {
 
 pub fn handle_action(id: &str, app: &AppHandle) {
     match id {
-        shortcuts::ACTION_TOGGLE => toggle_clicker(app),
+        shortcuts::ACTION_TOGGLE => {
+            toggle_clicker(app);
+        }
         shortcuts::ACTION_START => set_active(true, app),
         shortcuts::ACTION_STOP => set_active(false, app),
         _ if shortcuts::is_preset_action(id) => emit_preset_action(id, app),
@@ -126,9 +123,10 @@ pub fn set_active(active: bool, app: &AppHandle) {
     state.emit(app);
 }
 
-pub fn toggle_clicker(app: &AppHandle) {
+pub fn toggle_clicker(app: &AppHandle) -> bool {
     let running = resolve_state(app).is_running.load(Ordering::SeqCst);
     set_active(!running, app);
+    !running
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -146,7 +144,7 @@ pub fn run(app_state: Arc<AppState>, tx: mpsc::Sender<ClickerSig>, rx: mpsc::Rec
             let settings_data = settings_mgr.get();
             if settings_data.persist_app_state {
                 if let Some(saved) = settings_data.saved_state {
-                    app_state.cps.store(saved.cps.to_bits(), Ordering::SeqCst);
+                    *app_state.cps.lock().unwrap() = saved.cps;
                     app_state
                         .click_limit
                         .store(saved.click_limit, Ordering::SeqCst);
